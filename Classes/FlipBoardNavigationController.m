@@ -33,7 +33,7 @@
 
 static const CGFloat kAnimationDuration = 0.5f;
 static const CGFloat kAnimationDelay = 0.0f;
-static const CGFloat kMaxBlackMaskAlpha = 0.8f;
+static const CGFloat kMaxBlackMaskAlpha = 0.5f;
 
 typedef enum {
     PanDirectionNone = 0,
@@ -48,6 +48,7 @@ typedef enum {
     CGPoint _panOrigin;
     BOOL _animationInProgress;
     CGFloat _percentageOffsetFromLeft;
+    UIView *_tabBarContainer;
 }
 
 - (void) addPanGestureToView:(UIView*)view;
@@ -111,6 +112,14 @@ typedef enum {
     [self addChildViewController:viewController];
     [self.view bringSubviewToFront:_blackMask];
     [self.view addSubview:viewController.view];
+    UITabBar *tabBar;
+    if (!self.currentViewController.hidesBottomBarWhenPushed) {
+        //只有最外层显示bottomBar
+        tabBar = self.currentViewController.tabBarController.tabBar;
+        _tabBarContainer = tabBar.superview;
+        [tabBar removeFromSuperview];
+        [[self currentViewController].view addSubview:tabBar];
+    }
     [UIView animateWithDuration:kAnimationDuration delay:kAnimationDelay options:0 animations:^{
         CGAffineTransform transf = CGAffineTransformIdentity;
         [self currentViewController].view.transform = CGAffineTransformScale(transf, 0.9f, 0.9f);
@@ -123,6 +132,11 @@ typedef enum {
             _animationInProgress = NO;
             _gestures = [[NSMutableArray alloc] init];
             [self addPanGestureToView:[self currentViewController].view];
+            if (tabBar) {
+                [tabBar removeFromSuperview];
+                [tabBar setHidden:YES];
+                [_tabBarContainer addSubview:tabBar];
+            }
             handler();
         }
     }];
@@ -158,6 +172,11 @@ typedef enum {
             [self.viewControllers removeObject:currentVC];
             _animationInProgress = NO;
             [previousVC viewDidAppear:NO];
+            if (!previousVC.hidesBottomBarWhenPushed) {
+                UITabBar *tabBar = previousVC.tabBarController.tabBar;
+                [tabBar removeFromSuperview];
+                [_tabBarContainer addSubview:tabBar];
+            }
             handler();
         }
     }];
@@ -289,6 +308,15 @@ typedef enum {
     CGFloat newAlphaValue = percentage* kMaxBlackMaskAlpha;
     [self previousViewController].view.transform = CGAffineTransformScale(transf,newTransformValue,newTransformValue);
     _blackMask.alpha = newAlphaValue;
+    UITabBar *tabBar;
+    
+    if (![self previousViewController].hidesBottomBarWhenPushed) {
+        tabBar = [self previousViewController].tabBarController.tabBar;
+        [tabBar removeFromSuperview];
+        [[self previousViewController].view addSubview:tabBar];
+        [tabBar setHidden:NO];
+    }
+    
 }
 
 #pragma mark - This will complete the animation base on pan direction
