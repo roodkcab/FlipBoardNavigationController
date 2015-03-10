@@ -173,6 +173,15 @@ typedef enum {
         return;
     }
     
+    if (![self previousViewController].hidesBottomBarWhenPushed) {
+        UITabBar *tabBar = [self previousViewController].tabBarController.tabBar;
+        if (tabBar.hidden) {
+            [tabBar removeFromSuperview];
+            [[self previousViewController].view addSubview:tabBar];
+            [tabBar setHidden:NO];
+        }
+    }
+    
     UIViewController *currentVC = [self currentViewController];
     UIViewController *previousVC = [self previousViewController];
     if (_segue) {
