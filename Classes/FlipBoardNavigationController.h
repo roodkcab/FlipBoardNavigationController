@@ -31,7 +31,9 @@ typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
 
 @interface FlipBoardNavigationController : UIViewController
 
-@property(nonatomic, retain) NSMutableArray *viewControllers;
+@property (nonatomic, retain) UIViewController *segue;
+@property (nonatomic, retain) NSMutableArray *gestures;
+@property (nonatomic, retain) NSMutableArray *viewControllers;
 
 - (id) initWithRootViewController:(UIViewController*)rootViewController;
 
@@ -39,6 +41,9 @@ typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
 - (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler;
 - (void) popViewController;
 - (void) popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
+
+- (void) back;
+- (void) popToRootViewController;
 @end
 
 @interface UIViewController (FlipBoardNavigationController)
