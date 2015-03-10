@@ -43,7 +43,6 @@ typedef enum {
 
 
 @interface FlipBoardNavigationController ()<UIGestureRecognizerDelegate>{
-    NSMutableArray *_gestures;
     UIView *_blackMask;
     CGPoint _panOrigin;
     BOOL _animationInProgress;
@@ -102,6 +101,12 @@ typedef enum {
     self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
 }
 
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+    _segue = nil;
+}
+
 #pragma mark - PushViewController With Completion Block
 - (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler {
     _animationInProgress = YES;
@@ -120,14 +125,13 @@ typedef enum {
         [tabBar removeFromSuperview];
         [[self currentViewController].view addSubview:tabBar];
     }
+    [self.viewControllers addObject:viewController];
     [UIView animateWithDuration:kAnimationDuration delay:kAnimationDelay options:0 animations:^{
-        CGAffineTransform transf = CGAffineTransformIdentity;
-        [self currentViewController].view.transform = CGAffineTransformScale(transf, 0.9f, 0.9f);
+        [self currentViewController].view.transform = CGAffineTransformIdentity;
         viewController.view.frame = self.view.bounds;
         _blackMask.alpha = kMaxBlackMaskAlpha;
-    }   completion:^(BOOL finished) {
+    } completion:^(BOOL finished) {
         if (finished) {
-            [self.viewControllers addObject:viewController];
             [viewController didMoveToParentViewController:self];
             _animationInProgress = NO;
             _gestures = [[NSMutableArray alloc] init];
@@ -143,7 +147,23 @@ typedef enum {
 }
 
 - (void) pushViewController:(UIViewController *)viewController {
+    [viewController setHidesBottomBarWhenPushed:YES];
+    _segue = nil;
     [self pushViewController:viewController completion:^{}];
+}
+
+- (void) setSegue:(UIViewController *)segue
+{
+    __block BOOL shouldHide = NO;
+    [self.viewControllers enumerateObjectsUsingBlock:^(UIViewController *vc, NSUInteger idx, BOOL *stop) {
+        if (shouldHide && (idx != self.viewControllers.count-1)) {
+            [vc.view setHidden:YES];
+        }
+        if ([vc isEqual:segue]) {
+            shouldHide = YES;
+        }
+    }];
+    _segue = segue;
 }
 
 #pragma mark - PopViewController With Completion Block
@@ -155,21 +175,25 @@ typedef enum {
     
     UIViewController *currentVC = [self currentViewController];
     UIViewController *previousVC = [self previousViewController];
+    if (_segue) {
+        previousVC = _segue;
+    }
     [previousVC viewWillAppear:NO];
     [UIView animateWithDuration:kAnimationDuration delay:kAnimationDelay options:0 animations:^{
         currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
-        CGAffineTransform transf = CGAffineTransformIdentity;
-        previousVC.view.transform = CGAffineTransformScale(transf, 1.0, 1.0);
+        previousVC.view.transform = CGAffineTransformIdentity;
         previousVC.view.frame = self.view.bounds;
         _blackMask.alpha = 0.0;
     } completion:^(BOOL finished) {
         if (finished) {
             [currentVC.view removeFromSuperview];
             [currentVC willMoveToParentViewController:nil];
-            [self.view bringSubviewToFront:[self previousViewController].view];
+            [self.view bringSubviewToFront:previousVC.view];
             [currentVC removeFromParentViewController];
             [currentVC didMoveToParentViewController:nil];
-            [self.viewControllers removeObject:currentVC];
+            do {
+                [self.viewControllers removeLastObject];
+            } while (_segue && ![self.currentViewController isEqual:_segue]);
             _animationInProgress = NO;
             [previousVC viewDidAppear:NO];
             if (!previousVC.hidesBottomBarWhenPushed) {
@@ -180,11 +204,16 @@ typedef enum {
             handler();
         }
     }];
-    
 }
 
 - (void) popViewController {
     [self popViewControllerWithCompletion:^{}];
+}
+
+- (void) back
+{
+    [self transformAtPercentage:0];
+    [self completeSlidingAnimationWithDirection:PanDirectionRight];
 }
 
 - (void) rollBackViewController {
@@ -196,7 +225,7 @@ typedef enum {
 
     [UIView animateWithDuration:0.3f delay:kAnimationDelay options:0 animations:^{
         CGAffineTransform transf = CGAffineTransformIdentity;
-        nvc.view.transform = CGAffineTransformScale(transf, 0.9f, 0.9f);
+        nvc.view.transform = CGAffineTransformScale(transf, 1.f, 1.f);
         vc.view.frame = rect;
         _blackMask.alpha = kMaxBlackMaskAlpha;
     }   completion:^(BOOL finished) {
@@ -237,7 +266,6 @@ typedef enum {
 #pragma mark - Add Pan Gesture
 - (void) addPanGestureToView:(UIView*)view
 {
-    NSLog(@"ADD PAN GESTURE $$### %i",[_gestures count]);
     UIPanGestureRecognizer* panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self
                                                                                  action:@selector(gestureRecognizerDidPan:)];
     panGesture.cancelsTouchesInView = YES;
@@ -303,10 +331,9 @@ typedef enum {
 
 #pragma mark - Set the required transformation based on percentage
 - (void) transformAtPercentage:(CGFloat)percentage {
-    CGAffineTransform transf = CGAffineTransformIdentity;
-    CGFloat newTransformValue =  1 - (percentage*10)/100;
+    //CGFloat newTransformValue =  1 - (percentage*10)/100;
     CGFloat newAlphaValue = percentage* kMaxBlackMaskAlpha;
-    [self previousViewController].view.transform = CGAffineTransformScale(transf,newTransformValue,newTransformValue);
+    [self previousViewController].view.transform = CGAffineTransformIdentity;
     _blackMask.alpha = newAlphaValue;
     UITabBar *tabBar;
     
