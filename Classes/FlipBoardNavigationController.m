@@ -295,55 +295,50 @@ typedef enum {
 
 #pragma mark - Handle Panning Activity
 - (void) gestureRecognizerDidPan:(UIPanGestureRecognizer*)panGesture {
-    if(_animationInProgress) return;
- 
-    CGPoint currentPoint = [panGesture translationInView:self.view];
-    CGFloat x = currentPoint.x + _panOrigin.x;
-    
-    PanDirection panDirection = PanDirectionNone;
-    CGPoint vel = [panGesture velocityInView:self.view];
-
-    if (vel.x > 0) {
-        panDirection = PanDirectionRight;
-    } else {
-        panDirection = PanDirectionLeft;
+    if (_animationInProgress) {
+        return;
     }
-    
-    CGFloat offset = 0;
-    
-    UIViewController * vc ;
-    vc = [self currentViewController];
-    offset = CGRectGetWidth(vc.view.frame) - x;
-    
-    _percentageOffsetFromLeft = offset/[self viewBoundsWithOrientation:self.interfaceOrientation].size.width;
-    vc.view.frame = [self getSlidingRectWithPercentageOffset:_percentageOffsetFromLeft orientation:self.interfaceOrientation];
-    [self transformAtPercentage:_percentageOffsetFromLeft];
-    
-    if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
-        // If velocity is greater than 100 the Execute the Completion base on pan direction
-        if(abs(vel.x) > 100) {
-            [self completeSlidingAnimationWithDirection:panDirection];
-        }else { 
-            [self completeSlidingAnimationWithOffset:offset];
+    PanDirection panDirection = PanDirectionNone;
+    static UIViewController *currentVC;
+    if (panGesture.state == UIGestureRecognizerStateBegan) {
+        currentVC = [self currentViewController];
+        if (![self previousViewController].hidesBottomBarWhenPushed) {
+            UITabBar *tabBar = [self previousViewController].tabBarController.tabBar;
+            [tabBar removeFromSuperview];
+            [[self previousViewController].view addSubview:tabBar];
+            [tabBar setHidden:NO];
         }
+    } else {
+        CGPoint currentPoint = [panGesture translationInView:self.view];
+        CGFloat x = currentPoint.x + _panOrigin.x;
+        CGPoint vel = [panGesture velocityInView:self.view];
+        if (vel.x > 0) {
+            panDirection = PanDirectionRight;
+        } else {
+            panDirection = PanDirectionLeft;
+        }
+        CGFloat offset = CGRectGetWidth(self.view.frame) - x;
+        _percentageOffsetFromLeft = offset / CGRectGetWidth(self.view.bounds);
+        currentVC.view.frame = [self getSlidingRectWithPercentageOffset:_percentageOffsetFromLeft orientation:self.interfaceOrientation];
+        [self transformAtPercentage:_percentageOffsetFromLeft];
+        
+        if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
+            // If velocity is greater than 100 the Execute the Completion base on pan direction
+            if(abs(vel.x) > 100) {
+                [self completeSlidingAnimationWithDirection:panDirection];
+            }else { 
+                [self completeSlidingAnimationWithOffset:offset];
+            }
+        }
+        
     }
 }
 
 #pragma mark - Set the required transformation based on percentage
 - (void) transformAtPercentage:(CGFloat)percentage {
-    //CGFloat newTransformValue =  1 - (percentage*10)/100;
-    CGFloat newAlphaValue = percentage* kMaxBlackMaskAlpha;
+    CGFloat newAlphaValue = percentage * kMaxBlackMaskAlpha;
     [self previousViewController].view.transform = CGAffineTransformIdentity;
     _blackMask.alpha = newAlphaValue;
-    UITabBar *tabBar;
-    
-    if (![self previousViewController].hidesBottomBarWhenPushed) {
-        tabBar = [self previousViewController].tabBarController.tabBar;
-        [tabBar removeFromSuperview];
-        [[self previousViewController].view addSubview:tabBar];
-        [tabBar setHidden:NO];
-    }
-    
 }
 
 #pragma mark - This will complete the animation base on pan direction
@@ -367,12 +362,8 @@ typedef enum {
 
 #pragma mark - Get the origin and size of the visible viewcontrollers(child)
 - (CGRect) getSlidingRectWithPercentageOffset:(CGFloat)percentage orientation:(UIInterfaceOrientation)orientation {
-    CGRect viewRect = [self viewBoundsWithOrientation:orientation];
-    CGRect rectToReturn = CGRectZero;
-    UIViewController * vc;
-    vc = [self currentViewController];
-    rectToReturn.size = viewRect.size;
-    rectToReturn.origin = CGPointMake(MAX(0,(1-percentage)*viewRect.size.width), 0.0);
+    CGRect rectToReturn = self.view.bounds;
+    rectToReturn.origin = CGPointMake(MAX(0, (1-percentage)*CGRectGetWidth(rectToReturn)), 0);
     return rectToReturn;
 }
 
