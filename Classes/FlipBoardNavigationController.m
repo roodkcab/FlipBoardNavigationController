@@ -148,6 +148,7 @@ typedef enum {
 
 - (void) pushViewController:(UIViewController *)viewController {
     [viewController setHidesBottomBarWhenPushed:YES];
+    [viewController.view setClipsToBounds:YES];
     _segue = nil;
     [self pushViewController:viewController completion:^{}];
 }
@@ -183,6 +184,7 @@ typedef enum {
     }
     
     UIViewController *currentVC = [self currentViewController];
+    [currentVC.view setClipsToBounds:YES];
     UIViewController *previousVC = [self previousViewController];
     if (_segue) {
         previousVC = _segue;
