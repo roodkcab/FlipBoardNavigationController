@@ -69,6 +69,23 @@ typedef enum {
 - (id) initWithRootViewController:(UIViewController*)rootViewController {
     if (self = [super init]) {
         self.viewControllers = [NSMutableArray arrayWithObject:rootViewController];
+        CGRect viewRect = [self viewBoundsWithOrientation:self.interfaceOrientation];
+        
+        UIViewController *rootViewController = [self.viewControllers objectAtIndex:0];
+        [rootViewController willMoveToParentViewController:self];
+        [self addChildViewController:rootViewController];
+        
+        UIView * rootView = rootViewController.view;
+        rootView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
+        rootView.frame = viewRect;
+        [self.view addSubview:rootView];
+        [rootViewController didMoveToParentViewController:self];
+        _blackMask = [[UIView alloc] initWithFrame:viewRect];
+        _blackMask.backgroundColor = [UIColor blackColor];
+        _blackMask.alpha = 0.0;
+        _blackMask.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
+        [self.view insertSubview:_blackMask atIndex:0];
+        self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     }
     return self;
 }
@@ -77,28 +94,6 @@ typedef enum {
     self.viewControllers = nil;
     _gestures  = nil;
     _blackMask = nil;
-}
-
-#pragma mark - Load View
-- (void) loadView {
-    [super loadView];
-    CGRect viewRect = [self viewBoundsWithOrientation:self.interfaceOrientation];
-   
-    UIViewController *rootViewController = [self.viewControllers objectAtIndex:0];
-    [rootViewController willMoveToParentViewController:self];
-    [self addChildViewController:rootViewController];
-   
-    UIView * rootView = rootViewController.view;
-    rootView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-    rootView.frame = viewRect;
-    [self.view addSubview:rootView];
-    [rootViewController didMoveToParentViewController:self];
-    _blackMask = [[UIView alloc] initWithFrame:viewRect];
-    _blackMask.backgroundColor = [UIColor blackColor];
-    _blackMask.alpha = 0.0;
-    _blackMask.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-    [self.view insertSubview:_blackMask atIndex:0];
-    self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -218,11 +213,6 @@ typedef enum {
 }
 
 - (void) popViewController {
-    [self popViewControllerWithCompletion:^{}];
-}
-
-- (void) back
-{
     [self transformAtPercentage:0];
     [self completeSlidingAnimationWithDirection:PanDirectionRight];
 }
@@ -355,7 +345,7 @@ typedef enum {
 #pragma mark - This will complete the animation base on pan direction
 - (void) completeSlidingAnimationWithDirection:(PanDirection)direction {
     if(direction==PanDirectionRight){
-        [self popViewController];
+        [self popViewControllerWithCompletion:^{}];
     }else {
         [self rollBackViewController];
     }
