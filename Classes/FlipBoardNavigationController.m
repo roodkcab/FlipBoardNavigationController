@@ -205,6 +205,7 @@ typedef enum {
             if (!previousVC.hidesBottomBarWhenPushed) {
                 UITabBar *tabBar = previousVC.tabBarController.tabBar;
                 [tabBar removeFromSuperview];
+                NSLog(@"%@ %@", _tabBarContainer, tabBar);
                 [_tabBarContainer addSubview:tabBar];
             }
             handler();
@@ -215,6 +216,12 @@ typedef enum {
 - (void) popViewController {
     [self transformAtPercentage:0];
     [self completeSlidingAnimationWithDirection:PanDirectionRight];
+}
+
+- (void) popToRootViewController
+{
+    self.segue = _viewControllers[0];
+    [self popViewController];
 }
 
 - (void) rollBackViewController {
@@ -267,9 +274,10 @@ typedef enum {
 #pragma mark - Add Pan Gesture
 - (void) addPanGestureToView:(UIView*)view
 {
-    UIPanGestureRecognizer* panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self
-                                                                                 action:@selector(gestureRecognizerDidPan:)];
+    UIScreenEdgePanGestureRecognizer* panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self
+                                                                                                     action:@selector(gestureRecognizerDidPan:)];
     panGesture.cancelsTouchesInView = YES;
+    panGesture.edges = UIRectEdgeLeft;
     panGesture.delegate = self;
     [view addGestureRecognizer:panGesture];
     [_gestures addObject:panGesture];
@@ -278,8 +286,10 @@ typedef enum {
 
 # pragma mark - Avoid Unwanted Vertical Gesture
 - (BOOL)gestureRecognizerShouldBegin:(UIPanGestureRecognizer *)panGestureRecognizer {
-    CGPoint translation = [panGestureRecognizer translationInView:self.view];
-    return fabs(translation.x) > fabs(translation.y) ;
+    if ([panGestureRecognizer isKindOfClass:UIScreenEdgePanGestureRecognizer.class]) {
+        return YES;
+    }
+    return NO;
 }
 
 #pragma mark - Gesture recognizer
@@ -401,7 +411,6 @@ typedef enum {
 
 - (FlipBoardNavigationController *)flipboardNavigationController
 {
-    
     if([self.parentViewController isKindOfClass:[FlipBoardNavigationController class]]){
         return (FlipBoardNavigationController*)self.parentViewController;
     }
