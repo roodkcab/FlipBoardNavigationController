@@ -205,7 +205,6 @@ typedef enum {
             if (!previousVC.hidesBottomBarWhenPushed) {
                 UITabBar *tabBar = previousVC.tabBarController.tabBar;
                 [tabBar removeFromSuperview];
-                NSLog(@"%@ %@", _tabBarContainer, tabBar);
                 [_tabBarContainer addSubview:tabBar];
             }
             handler();
@@ -227,20 +226,21 @@ typedef enum {
 - (void) rollBackViewController {
     _animationInProgress = YES;
     
-    UIViewController * vc = [self currentViewController];
-    UIViewController * nvc = [self previousViewController];
+    UIViewController *vc = [self currentViewController];
     CGRect rect = CGRectMake(0, 0, vc.view.frame.size.width, vc.view.frame.size.height);
 
-    [UIView animateWithDuration:0.3f delay:kAnimationDelay options:0 animations:^{
-        CGAffineTransform transf = CGAffineTransformIdentity;
-        nvc.view.transform = CGAffineTransformScale(transf, 1.f, 1.f);
-        vc.view.frame = rect;
-        _blackMask.alpha = kMaxBlackMaskAlpha;
-    }   completion:^(BOOL finished) {
-        if (finished) {
-            _animationInProgress = NO;
-        }
-    }];
+    [UIView animateWithDuration:0.3f
+                          delay:kAnimationDelay
+                        options:0
+                     animations:^{
+                         vc.view.frame = rect;
+                         _blackMask.alpha = kMaxBlackMaskAlpha;
+                     }
+                     completion:^(BOOL finished) {
+                         if (finished) {
+                             _animationInProgress = NO;
+                         }
+                     }];
 }
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
@@ -274,14 +274,13 @@ typedef enum {
 #pragma mark - Add Pan Gesture
 - (void) addPanGestureToView:(UIView*)view
 {
-    UIScreenEdgePanGestureRecognizer* panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self
+    UIScreenEdgePanGestureRecognizer *panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self
                                                                                                      action:@selector(gestureRecognizerDidPan:)];
     panGesture.cancelsTouchesInView = YES;
-    panGesture.edges = UIRectEdgeLeft;
     panGesture.delegate = self;
+    panGesture.edges = UIRectEdgeLeft;
     [view addGestureRecognizer:panGesture];
     [_gestures addObject:panGesture];
-    panGesture = nil;
 }
 
 # pragma mark - Avoid Unwanted Vertical Gesture
