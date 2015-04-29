@@ -166,6 +166,7 @@ typedef enum {
 - (void) popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler {
     _animationInProgress = YES;
     if (self.viewControllers.count < 2) {
+        handler();
         return;
     }
     
