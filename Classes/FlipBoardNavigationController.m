@@ -181,9 +181,6 @@ typedef enum {
     UIViewController *currentVC = [self currentViewController];
     [currentVC.view setClipsToBounds:YES];
     UIViewController *previousVC = [self previousViewController];
-    if (_segue) {
-        previousVC = _segue;
-    }
     [previousVC viewWillAppear:NO];
     [UIView animateWithDuration:kAnimationDuration delay:kAnimationDelay options:0 animations:^{
         currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
@@ -197,9 +194,7 @@ typedef enum {
             [self.view bringSubviewToFront:previousVC.view];
             [currentVC removeFromParentViewController];
             [currentVC didMoveToParentViewController:nil];
-            do {
-                [self.viewControllers removeLastObject];
-            } while (_segue && ![self.currentViewController isEqual:_segue]);
+            [self.viewControllers removeLastObject];
             _animationInProgress = NO;
             [previousVC viewDidAppear:NO];
             if (!previousVC.hidesBottomBarWhenPushed) {
@@ -217,10 +212,17 @@ typedef enum {
     [self completeSlidingAnimationWithDirection:PanDirectionRight];
 }
 
-- (void) popToRootViewController
+- (void) popToRootViewControllerWithCompletion:(void(^)())completion
 {
-    self.segue = _viewControllers[0];
-    [self popViewController];
+    [self popViewControllerWithCompletion:^{
+        [UIView setAnimationsEnabled:NO];
+        if (![self.currentViewController isEqual:_viewControllers.firstObject]) {
+            [self popToRootViewControllerWithCompletion:completion];
+        } else {
+            [UIView setAnimationsEnabled:YES];
+            completion();
+        }
+    }];
 }
 
 - (void) rollBackViewController {
@@ -228,7 +230,7 @@ typedef enum {
     
     UIViewController *vc = [self currentViewController];
     CGRect rect = CGRectMake(0, 0, vc.view.frame.size.width, vc.view.frame.size.height);
-
+    
     [UIView animateWithDuration:0.3f
                           delay:kAnimationDelay
                         options:0
@@ -274,13 +276,13 @@ typedef enum {
 #pragma mark - Add Pan Gesture
 - (void) addPanGestureToView:(UIView*)view
 {
-    UIScreenEdgePanGestureRecognizer *panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self
-                                                                                                     action:@selector(gestureRecognizerDidPan:)];
+    UIScreenEdgePanGestureRecognizer* panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(gestureRecognizerDidPan:)];
     panGesture.cancelsTouchesInView = YES;
     panGesture.delegate = self;
     panGesture.edges = UIRectEdgeLeft;
     [view addGestureRecognizer:panGesture];
     [_gestures addObject:panGesture];
+    panGesture = nil;
 }
 
 # pragma mark - Avoid Unwanted Vertical Gesture
