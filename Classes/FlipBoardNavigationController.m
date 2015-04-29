@@ -86,6 +86,7 @@ typedef enum {
         _blackMask.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
         [self.view insertSubview:_blackMask atIndex:0];
         self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
+        _gestures = [[NSMutableArray alloc] init];
     }
     return self;
 }
@@ -126,18 +127,15 @@ typedef enum {
         viewController.view.frame = self.view.bounds;
         _blackMask.alpha = kMaxBlackMaskAlpha;
     } completion:^(BOOL finished) {
-        if (finished) {
-            [viewController didMoveToParentViewController:self];
-            _animationInProgress = NO;
-            _gestures = [[NSMutableArray alloc] init];
-            [self addPanGestureToView:[self currentViewController].view];
-            if (tabBar) {
-                [tabBar removeFromSuperview];
-                [tabBar setHidden:YES];
-                [_tabBarContainer addSubview:tabBar];
-            }
-            handler();
+        [viewController didMoveToParentViewController:self];
+        _animationInProgress = NO;
+        [self addPanGestureToView:[self currentViewController].view];
+        if (tabBar) {
+            [tabBar removeFromSuperview];
+            [tabBar setHidden:YES];
+            [_tabBarContainer addSubview:tabBar];
         }
+        handler();
     }];
 }
 
