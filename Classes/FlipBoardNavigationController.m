@@ -213,15 +213,25 @@ typedef enum {
 
 - (void) popToRootViewControllerWithCompletion:(void(^)())completion
 {
-    [self popViewControllerWithCompletion:^{
-        [UIView setAnimationsEnabled:NO];
-        if (![self.currentViewController isEqual:_viewControllers.firstObject]) {
-            [self popToRootViewControllerWithCompletion:completion];
-        } else {
-            [UIView setAnimationsEnabled:YES];
+    void(^finishBlock)() = ^(){
+        [UIView setAnimationsEnabled:YES];
+        if (completion) {
             completion();
         }
-    }];
+    };
+    
+    if (self.viewControllers.count < 2) {
+        finishBlock();
+    } else {
+        [UIView setAnimationsEnabled:NO];
+        [self popViewControllerWithCompletion:^{
+            if (![self.currentViewController isEqual:_viewControllers.firstObject]) {
+                [self popToRootViewControllerWithCompletion:finishBlock];
+            } else {
+                finishBlock();
+            }
+        }];
+    }
 }
 
 - (void) rollBackViewController {
