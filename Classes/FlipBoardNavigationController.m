@@ -114,7 +114,7 @@ typedef enum {
     [self.view bringSubviewToFront:_blackMask];
     [self.view addSubview:viewController.view];
     UITabBar *tabBar;
-    if (!self.currentViewController.hidesBottomBarWhenPushed) {
+    if (self.viewControllers.count == 1) {
         //只有最外层显示bottomBar
         tabBar = self.currentViewController.tabBarController.tabBar;
         _tabBarContainer = tabBar.superview;
@@ -130,11 +130,11 @@ typedef enum {
         [viewController didMoveToParentViewController:self];
         _animationInProgress = NO;
         [self addPanGestureToView:[self currentViewController].view];
-        if (tabBar) {
+        /*if (tabBar) {
             [tabBar removeFromSuperview];
             [tabBar setHidden:YES];
             [_tabBarContainer addSubview:tabBar];
-        }
+        }*/
         handler();
     }];
 }
@@ -166,15 +166,6 @@ typedef enum {
     if (self.viewControllers.count < 2) {
         handler();
         return;
-    }
-    
-    if (![self previousViewController].hidesBottomBarWhenPushed) {
-        UITabBar *tabBar = [self previousViewController].tabBarController.tabBar;
-        if (tabBar.hidden) {
-            [tabBar removeFromSuperview];
-            [[self previousViewController].view addSubview:tabBar];
-            [tabBar setHidden:NO];
-        }
     }
     
     UIViewController *currentVC = [self currentViewController];
@@ -266,11 +257,10 @@ typedef enum {
 
 #pragma mark - ChildViewController
 - (UIViewController *)currentViewController {
-    UIViewController *result = nil;
-    if ([self.viewControllers count]>0) {
-        result = [self.viewControllers lastObject];
+    if (self.viewControllers.count > 0) {
+        return self.viewControllers.lastObject;
     }
-    return result;
+    return nil;
 }
 
 #pragma mark - ParentViewController
