@@ -127,14 +127,9 @@ typedef enum {
         viewController.view.frame = self.view.bounds;
         _blackMask.alpha = kMaxBlackMaskAlpha;
     } completion:^(BOOL finished) {
-        [viewController didMoveToParentViewController:self];
         _animationInProgress = NO;
         [self addPanGestureToView:[self currentViewController].view];
-        /*if (tabBar) {
-            [tabBar removeFromSuperview];
-            [tabBar setHidden:YES];
-            [_tabBarContainer addSubview:tabBar];
-        }*/
+        [viewController didMoveToParentViewController:self];
         handler();
     }];
 }
