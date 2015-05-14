@@ -105,6 +105,9 @@ typedef enum {
 
 #pragma mark - PushViewController With Completion Block
 - (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler {
+    if (_animationInProgress) {
+        return;
+    }
     _animationInProgress = YES;
     viewController.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
     viewController.view.autoresizingMask =  UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
@@ -157,11 +160,14 @@ typedef enum {
 
 #pragma mark - PopViewController With Completion Block
 - (void) popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler {
-    _animationInProgress = YES;
     if (self.viewControllers.count < 2) {
         handler();
         return;
     }
+    if (_animationInProgress) {
+        return;
+    }
+    _animationInProgress = YES;
     
     UIViewController *currentVC = [self currentViewController];
     [currentVC.view setClipsToBounds:YES];
@@ -183,9 +189,13 @@ typedef enum {
             _animationInProgress = NO;
             [previousVC viewDidAppear:NO];
             if (!previousVC.hidesBottomBarWhenPushed) {
-                UITabBar *tabBar = previousVC.tabBarController.tabBar;
-                [tabBar removeFromSuperview];
-                [_tabBarContainer addSubview:tabBar];
+                if (_tabBarContainer != nil) {
+                    UITabBar *tabBar = previousVC.tabBarController.tabBar;
+                    [tabBar removeFromSuperview];
+                    [_tabBarContainer addSubview:tabBar];
+                } else {
+                    NSLog(@"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                }
             }
             handler();
         }
@@ -234,9 +244,7 @@ typedef enum {
                          _blackMask.alpha = kMaxBlackMaskAlpha;
                      }
                      completion:^(BOOL finished) {
-                         if (finished) {
-                             _animationInProgress = NO;
-                         }
+                         _animationInProgress = NO;
                      }];
 }
 
