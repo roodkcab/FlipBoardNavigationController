@@ -35,13 +35,13 @@ typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
 @property (nonatomic, retain) NSMutableArray *gestures;
 @property (nonatomic, retain) NSMutableArray *viewControllers;
 
-- (id) initWithRootViewController:(UIViewController*)rootViewController;
-
-- (void) pushViewController:(UIViewController *)viewController;
-- (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler;
-- (void) popViewController;
-- (void) popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
-- (void) popToRootViewControllerWithCompletion:(void(^)())completion;
+- (instancetype)initWithRootViewController:(UIViewController*)rootViewController;
+- (void)pushViewController:(UIViewController *)viewController;
+- (void)pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler;
+- (void)popViewController;
+- (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
+- (void)popToRootViewControllerWithCompletion:(void(^)())completion;
+- (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate;
 
 @end
 

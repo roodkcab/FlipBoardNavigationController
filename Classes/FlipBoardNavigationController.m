@@ -28,10 +28,53 @@
 #import "FlipBoardNavigationController.h"
 #import <QuartzCore/QuartzCore.h>
 
+
+#pragma mark Self Defined EaseOut Timing Funciton 
+
+typedef double (^KeyframeParametricBlock)(double);
+
+@interface CAKeyframeAnimation (Parametric)
+
++ (id)animationWithKeyPath:(NSString *)path
+                  function:(KeyframeParametricBlock)block
+                 fromValue:(double)fromValue
+                   toValue:(double)toValue;
+
+@end
+
+@implementation CAKeyframeAnimation (Parametric)
+
++ (id)animationWithKeyPath:(NSString *)path
+                  function:(KeyframeParametricBlock)block
+                 fromValue:(double)fromValue
+                   toValue:(double)toValue {
+    // get a keyframe animation to set up
+    CAKeyframeAnimation *animation =
+    [CAKeyframeAnimation animationWithKeyPath:path];
+    // break the time into steps
+    //  (the more steps, the smoother the animation)
+    NSUInteger steps = 100;
+    NSMutableArray *values = [NSMutableArray arrayWithCapacity:steps];
+    double time = 0.0;
+    double timeStep = 1.0 / (double)(steps - 1);
+    for(NSUInteger i = 0; i < steps; i++) {
+        double value = fromValue + (block(time) * (toValue - fromValue));
+        [values addObject:[NSNumber numberWithDouble:value]];
+        time += timeStep;
+    }
+    // we want linear animation between keyframes, with equal time steps
+    animation.calculationMode = kCAAnimationLinear;
+    // set keyframes and we're done
+    [animation setValues:values];
+    return(animation);
+}
+
+@end
+
 #define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v)  ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedAscending)
 
-
-static const CGFloat kAnimationDuration = 0.5f;
+static const CGFloat kAnimationDurationPush = 0.5f;
+static const CGFloat kAnimationDurationPop = 0.3f;
 static const CGFloat kAnimationDelay = 0.0f;
 static const CGFloat kMaxBlackMaskAlpha = 0.5f;
 
@@ -43,7 +86,6 @@ typedef enum {
 
 
 @interface FlipBoardNavigationController ()<UIGestureRecognizerDelegate>{
-    UIView *_blackMask;
     CGPoint _panOrigin;
     BOOL _animationInProgress;
     CGFloat _percentageOffsetFromLeft;
@@ -66,7 +108,8 @@ typedef enum {
 
 @implementation FlipBoardNavigationController
 
-- (id) initWithRootViewController:(UIViewController*)rootViewController {
+- (id)initWithRootViewController:(UIViewController*)rootViewController
+{
     if (self = [super init]) {
         self.viewControllers = [NSMutableArray arrayWithObject:rootViewController];
         CGRect viewRect = [self viewBoundsWithOrientation:self.interfaceOrientation];
@@ -80,21 +123,16 @@ typedef enum {
         rootView.frame = viewRect;
         [self.view addSubview:rootView];
         [rootViewController didMoveToParentViewController:self];
-        _blackMask = [[UIView alloc] initWithFrame:viewRect];
-        _blackMask.backgroundColor = [UIColor blackColor];
-        _blackMask.alpha = 0.0;
-        _blackMask.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-        [self.view insertSubview:_blackMask atIndex:0];
         self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
         _gestures = [[NSMutableArray alloc] init];
     }
     return self;
 }
 
-- (void) dealloc {
+- (void) dealloc
+{
     self.viewControllers = nil;
     _gestures  = nil;
-    _blackMask = nil;
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -104,47 +142,69 @@ typedef enum {
 }
 
 #pragma mark - PushViewController With Completion Block
-- (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler {
-    if (_animationInProgress) {
+- (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler
+{
+    if (_animationInProgress || !viewController) {
         return;
     }
     _animationInProgress = YES;
     viewController.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
     viewController.view.autoresizingMask =  UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-    _blackMask.alpha = 0.0;
     [viewController willMoveToParentViewController:self];
     [self addChildViewController:viewController];
-    [self.view bringSubviewToFront:_blackMask];
     [self.view addSubview:viewController.view];
-    UITabBar *tabBar;
     if (self.viewControllers.count == 1) {
         //只有最外层显示bottomBar
-        tabBar = self.currentViewController.tabBarController.tabBar;
+        UITabBar *tabBar = self.currentViewController.tabBarController.tabBar;
         _tabBarContainer = tabBar.superview;
         [tabBar removeFromSuperview];
         [[self currentViewController].view addSubview:tabBar];
     }
     [self.viewControllers addObject:viewController];
-    [UIView animateWithDuration:kAnimationDuration delay:kAnimationDelay options:0 animations:^{
-        [self currentViewController].view.transform = CGAffineTransformIdentity;
-        viewController.view.frame = self.view.bounds;
-        _blackMask.alpha = kMaxBlackMaskAlpha;
-    } completion:^(BOOL finished) {
-        _animationInProgress = NO;
-        [self addPanGestureToView:[self currentViewController].view];
-        [viewController didMoveToParentViewController:self];
-        handler();
-    }];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        KeyframeParametricBlock function = ^double(double time) {
+            CGFloat coeff = 4;
+            CGFloat offset = exp(-coeff);
+            CGFloat scale = 1.0 / (1.0 - offset);
+            return 1.0 - scale * (exp(time * -coeff) - offset);
+        };
+        
+        CALayer *layer = viewController.view.layer;
+        if (layer) {
+            [CATransaction begin];
+            [CATransaction
+             setValue:@(kAnimationDurationPush)
+             forKey:kCATransactionAnimationDuration];
+            
+            // make an animation
+            CAAnimation *flip = [CAKeyframeAnimation
+                                 animationWithKeyPath:@"position.x"
+                                 function:function fromValue:self.view.bounds.size.width * 3 / 2 toValue:self.view.bounds.size.width / 2];
+            // use it
+            [layer addAnimation:flip forKey:@"position"];
+            [CATransaction setCompletionBlock:^{
+                [self currentViewController].view.transform = CGAffineTransformIdentity;
+                [self addPanGestureToView:[self currentViewController].view];
+                viewController.view.frame = self.view.bounds;
+                [viewController didMoveToParentViewController:self];
+                handler();
+                _animationInProgress = NO;
+            }];
+            [CATransaction commit];
+        }
+    });
 }
 
-- (void) pushViewController:(UIViewController *)viewController {
+- (void)pushViewController:(UIViewController *)viewController
+{
     [viewController setHidesBottomBarWhenPushed:YES];
     [viewController.view setClipsToBounds:YES];
     _segue = nil;
     [self pushViewController:viewController completion:^{}];
 }
 
-- (void) setSegue:(UIViewController *)segue
+- (void)setSegue:(UIViewController *)segue
 {
     __block BOOL shouldHide = NO;
     [self.viewControllers enumerateObjectsUsingBlock:^(UIViewController *vc, NSUInteger idx, BOOL *stop) {
@@ -159,7 +219,8 @@ typedef enum {
 }
 
 #pragma mark - PopViewController With Completion Block
-- (void) popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler {
+- (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler
+{
     if (self.viewControllers.count < 2) {
         handler();
         return;
@@ -173,12 +234,8 @@ typedef enum {
     [currentVC.view setClipsToBounds:YES];
     UIViewController *previousVC = [self previousViewController];
     [previousVC viewWillAppear:NO];
-    [UIView animateWithDuration:kAnimationDuration delay:kAnimationDelay options:0 animations:^{
-        currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
-        previousVC.view.transform = CGAffineTransformIdentity;
-        previousVC.view.frame = self.view.bounds;
-        _blackMask.alpha = 0.0;
-    } completion:^(BOOL finished) {
+    
+    void(^finishBlock)(BOOL) = ^(BOOL finished){
         if (finished) {
             [currentVC.view removeFromSuperview];
             [currentVC willMoveToParentViewController:nil];
@@ -192,45 +249,91 @@ typedef enum {
                 if (_tabBarContainer != nil) {
                     UITabBar *tabBar = previousVC.tabBarController.tabBar;
                     [tabBar removeFromSuperview];
+                    if (bg) {
+                        tabBar.hidden = YES;
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            tabBar.hidden = NO;
+                        });
+                    }
                     [_tabBarContainer addSubview:tabBar];
-                } else {
-                    NSLog(@"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
                 }
             }
             handler();
         }
-    }];
+    };
+    
+    if ([UIView areAnimationsEnabled]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:kAnimationDurationPop delay:kAnimationDelay options:UIViewAnimationOptionCurveEaseIn animations:^{
+                currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
+                previousVC.view.transform = CGAffineTransformIdentity;
+                previousVC.view.frame = self.view.bounds;
+            } completion:finishBlock];
+        });    
+    } else {
+        finishBlock(YES);
+    }
+    
 }
 
-- (void) popViewController {
+- (void)popViewController
+{
     [self transformAtPercentage:0];
     [self completeSlidingAnimationWithDirection:PanDirectionRight];
 }
 
-- (void) popToRootViewControllerWithCompletion:(void(^)())completion
+- (void)popToRootViewControllerWithCompletion:(void(^)())completion
 {
-    void(^finishBlock)() = ^(){
-        [UIView setAnimationsEnabled:YES];
-        if (completion) {
-            completion();
-        }
-    };
-    
+    return [self popToRootViewControllerWithCompletion:completion animate:NO];
+}
+
+static UIImageView *bg;
+- (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate
+{
+    if (!bg) {
+        UIView *view = self.currentViewController.view;
+        UIGraphicsBeginImageContextWithOptions(view.frame.size, 0, 0);
+        [view.layer renderInContext:UIGraphicsGetCurrentContext()];
+        bg = [[UIImageView alloc] initWithImage:UIGraphicsGetImageFromCurrentImageContext()];
+        UIGraphicsEndImageContext();
+        [((UIViewController *)self.viewControllers[0]).view addSubview:bg];
+    }
     if (self.viewControllers.count < 2) {
-        finishBlock();
+        [UIView setAnimationsEnabled:YES];
+        if (animate) {
+            self.currentViewController.tabBarController.tabBar.hidden = NO;
+            [UIView animateWithDuration:kAnimationDurationPop
+                             animations:^{
+                                 bg.transform = CGAffineTransformMakeTranslation(bg.frame.size.width, 0);
+                             }
+                             completion:^(BOOL finished) {
+                                 if (completion) {
+                                     completion();
+                                 }
+                                 bg.transform = CGAffineTransformIdentity;
+                                 [bg removeFromSuperview];
+                                 bg = nil;
+                             }];
+        } else {
+            if (completion) {
+                completion();
+            }
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [bg removeFromSuperview];
+                bg = nil;
+            });
+        }
+        
     } else {
         [UIView setAnimationsEnabled:NO];
         [self popViewControllerWithCompletion:^{
-            if (![self.currentViewController isEqual:_viewControllers.firstObject]) {
-                [self popToRootViewControllerWithCompletion:finishBlock];
-            } else {
-                finishBlock();
-            }
+            [self popToRootViewControllerWithCompletion:completion animate:animate];
         }];
     }
 }
 
-- (void) rollBackViewController {
+- (void)rollBackViewController
+{
     _animationInProgress = YES;
     
     UIViewController *vc = [self currentViewController];
@@ -238,10 +341,9 @@ typedef enum {
     
     [UIView animateWithDuration:0.3f
                           delay:kAnimationDelay
-                        options:0
+                        options:UIViewAnimationOptionCurveEaseIn
                      animations:^{
                          vc.view.frame = rect;
-                         _blackMask.alpha = kMaxBlackMaskAlpha;
                      }
                      completion:^(BOOL finished) {
                          _animationInProgress = NO;
@@ -250,11 +352,10 @@ typedef enum {
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
- 
     return (interfaceOrientation == UIInterfaceOrientationPortrait);
 }
 
-- (void) willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration {
+- (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration {
 
 }
 
@@ -276,7 +377,7 @@ typedef enum {
 }
 
 #pragma mark - Add Pan Gesture
-- (void) addPanGestureToView:(UIView*)view
+- (void)addPanGestureToView:(UIView*)view
 {
     UIScreenEdgePanGestureRecognizer* panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(gestureRecognizerDidPan:)];
     panGesture.cancelsTouchesInView = YES;
@@ -288,7 +389,8 @@ typedef enum {
 }
 
 # pragma mark - Avoid Unwanted Vertical Gesture
-- (BOOL)gestureRecognizerShouldBegin:(UIPanGestureRecognizer *)panGestureRecognizer {
+- (BOOL)gestureRecognizerShouldBegin:(UIPanGestureRecognizer *)panGestureRecognizer
+{
     if ([panGestureRecognizer isKindOfClass:UIScreenEdgePanGestureRecognizer.class]) {
         return YES;
     }
@@ -296,19 +398,22 @@ typedef enum {
 }
 
 #pragma mark - Gesture recognizer
-- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
+{
     UIViewController * vc =  [self.viewControllers lastObject];
     _panOrigin = vc.view.frame.origin;
     gestureRecognizer.enabled = YES;
     return !_animationInProgress;
 }
 
-- (BOOL) gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+- (BOOL) gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
+{
     return YES;
 }
 
 #pragma mark - Handle Panning Activity
-- (void) gestureRecognizerDidPan:(UIPanGestureRecognizer*)panGesture {
+- (void) gestureRecognizerDidPan:(UIPanGestureRecognizer*)panGesture
+{
     if (_animationInProgress) {
         return;
     }
@@ -338,9 +443,9 @@ typedef enum {
         
         if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
             // If velocity is greater than 100 the Execute the Completion base on pan direction
-            if(abs(vel.x) > 100) {
+            if (abs(vel.x) > 100) {
                 [self completeSlidingAnimationWithDirection:panDirection];
-            }else { 
+            } else {
                 [self completeSlidingAnimationWithOffset:offset];
             }
         }
@@ -349,53 +454,56 @@ typedef enum {
 }
 
 #pragma mark - Set the required transformation based on percentage
-- (void) transformAtPercentage:(CGFloat)percentage {
+- (void)transformAtPercentage:(CGFloat)percentage
+{
     CGFloat newAlphaValue = percentage * kMaxBlackMaskAlpha;
     [self previousViewController].view.transform = CGAffineTransformIdentity;
-    _blackMask.alpha = newAlphaValue;
 }
 
 #pragma mark - This will complete the animation base on pan direction
-- (void) completeSlidingAnimationWithDirection:(PanDirection)direction {
-    if(direction==PanDirectionRight){
+- (void)completeSlidingAnimationWithDirection:(PanDirection)direction
+{
+    if (direction == PanDirectionRight) {
         [self popViewControllerWithCompletion:^{}];
-    }else {
+    } else {
         [self rollBackViewController];
     }
 }
 
 #pragma mark - This will complete the animation base on offset
-- (void) completeSlidingAnimationWithOffset:(CGFloat)offset{
-   
-    if(offset<[self viewBoundsWithOrientation:self.interfaceOrientation].size.width/2) {
+- (void)completeSlidingAnimationWithOffset:(CGFloat)offset
+{
+    if (offset < [self viewBoundsWithOrientation:self.interfaceOrientation].size.width / 2) {
          [self popViewController];
-    }else {
+    } else {
         [self rollBackViewController];
     }
 }
 
 #pragma mark - Get the origin and size of the visible viewcontrollers(child)
-- (CGRect) getSlidingRectWithPercentageOffset:(CGFloat)percentage orientation:(UIInterfaceOrientation)orientation {
+- (CGRect)getSlidingRectWithPercentageOffset:(CGFloat)percentage orientation:(UIInterfaceOrientation)orientation
+{
     CGRect rectToReturn = self.view.bounds;
     rectToReturn.origin = CGPointMake(MAX(0, (1-percentage)*CGRectGetWidth(rectToReturn)), 0);
     return rectToReturn;
 }
 
 #pragma mark - Get the size of view in the main screen
-- (CGRect) viewBoundsWithOrientation:(UIInterfaceOrientation)orientation{
+- (CGRect)viewBoundsWithOrientation:(UIInterfaceOrientation)orientation
+{
 	CGRect bounds = [UIScreen mainScreen].bounds;
-    if([[UIApplication sharedApplication]isStatusBarHidden]){
+    if ([[UIApplication sharedApplication]isStatusBarHidden]) {
         return bounds;
-    } else if(UIInterfaceOrientationIsLandscape(orientation)){
+    } else if (UIInterfaceOrientationIsLandscape(orientation)) {
 		CGFloat width = bounds.size.width;
 		bounds.size.width = bounds.size.height;
         if (!SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"7.0"))  {
             bounds.size.height = width - 20;
-        }else {
+        } else {
             bounds.size.height = width;
         }
         return bounds;
-	}else{
+	} else {
         if (!SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"7.0"))  {
             bounds.size.height-=20;
         }
@@ -404,8 +512,6 @@ typedef enum {
 }
 
 @end
-
-
 
 #pragma mark - UIViewController Category
 //For Global Access of flipViewController
@@ -426,6 +532,5 @@ typedef enum {
     }
     
 }
-
 
 @end
