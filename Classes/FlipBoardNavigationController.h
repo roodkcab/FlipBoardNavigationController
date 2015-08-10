@@ -42,13 +42,12 @@ typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
 - (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate;
++ (BOOL)animationInProgress;
 
 @end
 
 @interface UIViewController (FlipBoardNavigationController)
+
 @property (nonatomic, retain) FlipBoardNavigationController *flipboardNavigationController;
+
 @end
-
-
-
-

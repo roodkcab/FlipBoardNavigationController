@@ -77,6 +77,7 @@ static const CGFloat kAnimationDurationPush = 0.5f;
 static const CGFloat kAnimationDurationPop = 0.3f;
 static const CGFloat kAnimationDelay = 0.0f;
 static const CGFloat kMaxBlackMaskAlpha = 0.5f;
+static BOOL _animationInProgress;
 
 typedef enum {
     PanDirectionNone = 0,
@@ -84,10 +85,8 @@ typedef enum {
     PanDirectionRight = 2
 } PanDirection;
 
-
 @interface FlipBoardNavigationController ()<UIGestureRecognizerDelegate>{
     CGPoint _panOrigin;
-    BOOL _animationInProgress;
     CGFloat _percentageOffsetFromLeft;
     UIView *_tabBarContainer;
 }
@@ -162,6 +161,10 @@ typedef enum {
     }
     [self.viewControllers addObject:viewController];
     
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        _animationInProgress = NO;
+    });
+    
     dispatch_async(dispatch_get_main_queue(), ^{
         KeyframeParametricBlock function = ^double(double time) {
             CGFloat coeff = 4;
@@ -189,7 +192,6 @@ typedef enum {
                 viewController.view.frame = self.view.bounds;
                 [viewController didMoveToParentViewController:self];
                 handler();
-                _animationInProgress = NO;
             }];
             [CATransaction commit];
         }
@@ -350,6 +352,11 @@ static UIImageView *bg;
                      }];
 }
 
++ (BOOL)animationInProgress
+{
+    return _animationInProgress;
+}
+
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
     return (interfaceOrientation == UIInterfaceOrientationPortrait);
@@ -443,7 +450,7 @@ static UIImageView *bg;
         
         if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
             // If velocity is greater than 100 the Execute the Completion base on pan direction
-            if (abs(vel.x) > 100) {
+            if (fabs(vel.x) > 100) {
                 [self completeSlidingAnimationWithDirection:panDirection];
             } else {
                 [self completeSlidingAnimationWithOffset:offset];
@@ -456,7 +463,6 @@ static UIImageView *bg;
 #pragma mark - Set the required transformation based on percentage
 - (void)transformAtPercentage:(CGFloat)percentage
 {
-    CGFloat newAlphaValue = percentage * kMaxBlackMaskAlpha;
     [self previousViewController].view.transform = CGAffineTransformIdentity;
 }
 
@@ -530,7 +536,6 @@ static UIImageView *bg;
     else{
         return nil;
     }
-    
 }
 
 @end
