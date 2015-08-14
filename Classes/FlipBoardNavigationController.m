@@ -345,7 +345,7 @@ static UIImageView *bg;
     } else {
         [UIView setAnimationsEnabled:NO];
         [self popViewControllerWithCompletion:^{
-            [self popToRootViewControllerWithCompletion:completion animate:animate];
+            [self popToViewControllerAtIndex:idx withCompletion:completion animate:animate];
         }];
     }   
 }
