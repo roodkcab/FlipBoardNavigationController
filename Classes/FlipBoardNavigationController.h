@@ -42,6 +42,8 @@ typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
 - (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate;
+- (void)popToLatestViewControllerWithClass:(Class *)className withCompletion:(void(^)())completion animate:(BOOL)animate;
+- (void)popToViewControllerAtIndex:(NSInteger)idx withCompletion:(void(^)())completion animate:(BOOL)animate;
 + (BOOL)animationInProgress;
 
 @end

@@ -275,7 +275,6 @@ typedef enum {
     } else {
         finishBlock(YES);
     }
-    
 }
 
 - (void)popViewController
@@ -289,8 +288,26 @@ typedef enum {
     return [self popToRootViewControllerWithCompletion:completion animate:NO];
 }
 
-static UIImageView *bg;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate
+{
+    return [self popToViewControllerAtIndex:0 withCompletion:completion animate:animate];
+}
+
+- (void)popToLatestViewControllerWithClass:(Class *)className withCompletion:(void(^)())completion animate:(BOOL)animate
+{
+    NSEnumerator *reversViewControllers = [self.viewControllers reverseObjectEnumerator];
+    UIViewController *vc;
+    int i = 1;
+    while (vc = [reversViewControllers nextObject]) {
+        i++;
+        if ([vc isMemberOfClass:*className]) {
+            return [self popToViewControllerAtIndex:self.viewControllers.count - i withCompletion:completion animate:animate];
+        }
+    }
+}
+
+static UIImageView *bg;
+- (void)popToViewControllerAtIndex:(NSInteger)idx withCompletion:(void(^)())completion animate:(BOOL)animate
 {
     if (!bg) {
         UIView *view = self.currentViewController.view;
@@ -300,7 +317,7 @@ static UIImageView *bg;
         UIGraphicsEndImageContext();
         [((UIViewController *)self.viewControllers[0]).view addSubview:bg];
     }
-    if (self.viewControllers.count < 2) {
+    if (self.viewControllers.count <= idx + 1) {
         [UIView setAnimationsEnabled:YES];
         if (animate) {
             self.currentViewController.tabBarController.tabBar.hidden = NO;
@@ -325,13 +342,12 @@ static UIImageView *bg;
                 bg = nil;
             });
         }
-        
     } else {
         [UIView setAnimationsEnabled:NO];
         [self popViewControllerWithCompletion:^{
             [self popToRootViewControllerWithCompletion:completion animate:animate];
         }];
-    }
+    }   
 }
 
 - (void)rollBackViewController
@@ -529,8 +545,7 @@ static UIImageView *bg;
     if([self.parentViewController isKindOfClass:[FlipBoardNavigationController class]]){
         return (FlipBoardNavigationController*)self.parentViewController;
     }
-    else if([self.parentViewController isKindOfClass:[UINavigationController class]] &&
-            [self.parentViewController.parentViewController isKindOfClass:[FlipBoardNavigationController class]]){
+    else if([self.parentViewController.parentViewController isKindOfClass:[FlipBoardNavigationController class]]){
         return (FlipBoardNavigationController*)[self.parentViewController parentViewController];
     }
     else{
