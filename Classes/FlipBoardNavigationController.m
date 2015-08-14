@@ -293,13 +293,17 @@ typedef enum {
     return [self popToViewControllerAtIndex:0 withCompletion:completion animate:animate];
 }
 
-- (void)popToLatestViewControllerWithClass:(Class)className withCompletion:(void(^)())completion animate:(BOOL)animate
+- (void)popToLatestViewControllerWithClass:(Class *)className withCompletion:(void(^)())completion animate:(BOOL)animate
 {
-    [self.viewControllers enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:^(UIViewController *vc, NSUInteger idx, BOOL *stop) {
-        if ([vc isMemberOfClass:className]) {
-            return [self popToViewControllerAtIndex:idx withCompletion:completion animate:animate];
+    NSEnumerator *reversViewControllers = [self.viewControllers reverseObjectEnumerator];
+    UIViewController *vc;
+    int i = 1;
+    while (vc = [reversViewControllers nextObject]) {
+        i++;
+        if ([vc isMemberOfClass:*className]) {
+            return [self popToViewControllerAtIndex:self.viewControllers.count - i withCompletion:completion animate:animate];
         }
-    }];
+    }
 }
 
 static UIImageView *bg;
