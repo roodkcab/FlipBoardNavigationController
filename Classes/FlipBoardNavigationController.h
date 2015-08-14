@@ -31,20 +31,25 @@ typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
 
 @interface FlipBoardNavigationController : UIViewController
 
-@property(nonatomic, retain) NSMutableArray *viewControllers;
+@property (nonatomic, retain) UIViewController *segue;
+@property (nonatomic, retain) NSMutableArray *gestures;
+@property (nonatomic, retain) NSMutableArray *viewControllers;
 
-- (id) initWithRootViewController:(UIViewController*)rootViewController;
+- (instancetype)initWithRootViewController:(UIViewController*)rootViewController;
+- (void)pushViewController:(UIViewController *)viewController;
+- (void)pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler;
+- (void)popViewController;
+- (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
+- (void)popToRootViewControllerWithCompletion:(void(^)())completion;
+- (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate;
+- (void)popToLatestViewControllerWithClass:(Class)className withCompletion:(void(^)())completion animate:(BOOL)animate;
+- (void)popToViewControllerAtIndex:(NSInteger)idx withCompletion:(void(^)())completion animate:(BOOL)animate;
++ (BOOL)animationInProgress;
 
-- (void) pushViewController:(UIViewController *)viewController;
-- (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler;
-- (void) popViewController;
-- (void) popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
 @end
 
 @interface UIViewController (FlipBoardNavigationController)
+
 @property (nonatomic, retain) FlipBoardNavigationController *flipboardNavigationController;
+
 @end
-
-
-
-
