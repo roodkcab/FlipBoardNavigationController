@@ -53,7 +53,7 @@ typedef double (^KeyframeParametricBlock)(double);
     [CAKeyframeAnimation animationWithKeyPath:path];
     // break the time into steps
     //  (the more steps, the smoother the animation)
-    NSUInteger steps = 100;
+    NSUInteger steps = 200;
     NSMutableArray *values = [NSMutableArray arrayWithCapacity:steps];
     double time = 0.0;
     double timeStep = 1.0 / (double)(steps - 1);
@@ -155,6 +155,7 @@ typedef enum {
     if (self.viewControllers.count == 1) {
         //只有最外层显示bottomBar
         UITabBar *tabBar = self.currentViewController.tabBarController.tabBar;
+        tabBar.userInteractionEnabled = NO;
         _tabBarContainer = tabBar.superview;
         [tabBar removeFromSuperview];
         [[self currentViewController].view addSubview:tabBar];
@@ -257,6 +258,7 @@ typedef enum {
                             tabBar.hidden = NO;
                         });
                     }
+                    tabBar.userInteractionEnabled = YES;
                     [_tabBarContainer addSubview:tabBar];
                 }
             }
@@ -266,11 +268,14 @@ typedef enum {
     
     if ([UIView areAnimationsEnabled]) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:kAnimationDurationPop delay:kAnimationDelay options:UIViewAnimationOptionCurveEaseIn animations:^{
-                currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
-                previousVC.view.transform = CGAffineTransformIdentity;
-                previousVC.view.frame = self.view.bounds;
-            } completion:finishBlock];
+            [UIView animateWithDuration:kAnimationDurationPop
+                                  delay:kAnimationDelay
+                                options:UIViewAnimationOptionCurveEaseIn animations:^{
+                                    currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
+                                    previousVC.view.transform = CGAffineTransformIdentity;
+                                    previousVC.view.frame = self.view.bounds;
+                                }
+                             completion:finishBlock];
         });    
     } else {
         finishBlock(YES);
