@@ -239,31 +239,29 @@ typedef enum {
     [previousVC viewWillAppear:NO];
     
     void(^finishBlock)(BOOL) = ^(BOOL finished){
-        if (finished) {
-            [currentVC.view removeFromSuperview];
-            [currentVC willMoveToParentViewController:nil];
-            [self.view bringSubviewToFront:previousVC.view];
-            [currentVC removeFromParentViewController];
-            [currentVC didMoveToParentViewController:nil];
-            [self.viewControllers removeLastObject];
-            _animationInProgress = NO;
-            [previousVC viewDidAppear:NO];
-            if (!previousVC.hidesBottomBarWhenPushed) {
-                if (_tabBarContainer != nil) {
-                    UITabBar *tabBar = previousVC.tabBarController.tabBar;
-                    [tabBar removeFromSuperview];
-                    if (bg) {
-                        tabBar.hidden = YES;
-                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            tabBar.hidden = NO;
-                        });
-                    }
-                    tabBar.userInteractionEnabled = YES;
-                    [_tabBarContainer addSubview:tabBar];
+        [currentVC.view removeFromSuperview];
+        [currentVC willMoveToParentViewController:nil];
+        [self.view bringSubviewToFront:previousVC.view];
+        [currentVC removeFromParentViewController];
+        [currentVC didMoveToParentViewController:nil];
+        [self.viewControllers removeLastObject];
+        _animationInProgress = NO;
+        [previousVC viewDidAppear:NO];
+        if (!previousVC.hidesBottomBarWhenPushed) {
+            if (_tabBarContainer != nil) {
+                UITabBar *tabBar = previousVC.tabBarController.tabBar;
+                [tabBar removeFromSuperview];
+                if (bg) {
+                    tabBar.hidden = YES;
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        tabBar.hidden = NO;
+                    });
                 }
+                tabBar.userInteractionEnabled = YES;
+                [_tabBarContainer addSubview:tabBar];
             }
-            handler();
         }
+        handler();
     };
     
     if ([UIView areAnimationsEnabled]) {
@@ -286,6 +284,12 @@ typedef enum {
 {
     [self transformAtPercentage:0];
     [self completeSlidingAnimationWithDirection:PanDirectionRight];
+}
+
+- (void)popToViewControllerForwardIndex:(NSInteger)idx withCompletion:(void (^)())completion animate:(BOOL)animate
+{
+    NSInteger currentIdx = [self.viewControllers indexOfObject:self.currentViewController];
+    return [self popToViewControllerAtIndex:(currentIdx - idx) withCompletion:completion animate:animate];
 }
 
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion
@@ -316,7 +320,7 @@ static UIImageView *bg;
         [view.layer renderInContext:UIGraphicsGetCurrentContext()];
         bg = [[UIImageView alloc] initWithImage:UIGraphicsGetImageFromCurrentImageContext()];
         UIGraphicsEndImageContext();
-        [((UIViewController *)self.viewControllers[0]).view addSubview:bg];
+        [((UIViewController *)self.viewControllers[idx]).view addSubview:bg];
     }
     if (self.viewControllers.count <= idx + 1) {
         [UIView setAnimationsEnabled:YES];
