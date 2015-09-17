@@ -27,19 +27,17 @@
 
 #import <UIKit/UIKit.h>
 
-typedef void (^FlipBoardNavigationControllerCompletionBlock)(void);
-
 @interface FlipBoardNavigationController : UIViewController
 
-@property (nonatomic, retain) UIViewController *segue;
 @property (nonatomic, retain) NSMutableArray *gestures;
 @property (nonatomic, retain) NSMutableArray *viewControllers;
 
 - (instancetype)initWithRootViewController:(UIViewController*)rootViewController;
 - (void)pushViewController:(UIViewController *)viewController;
-- (void)pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler;
+- (void)pushViewController:(UIViewController *)viewController transition:(UIViewAnimationOptions)transition;
+- (void)pushViewController:(UIViewController *)viewController completion:(void(^)())completion;
 - (void)popViewController;
-- (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler;
+- (void)popViewControllerWithCompletion:(void(^)())completion;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion animate:(BOOL)animate;
 - (void)popToViewControllerForwardIndex:(NSInteger)idx withCompletion:(void (^)())completion animate:(BOOL)animate;

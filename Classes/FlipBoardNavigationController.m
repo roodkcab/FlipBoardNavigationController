@@ -128,26 +128,43 @@ typedef enum {
     return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
     self.viewControllers = nil;
     _gestures  = nil;
 }
 
-- (void)viewDidAppear:(BOOL)animated
-{
-    [super viewDidAppear:animated];
-    _segue = nil;
-}
 
 #pragma mark - PushViewController With Completion Block
-- (void) pushViewController:(UIViewController *)viewController completion:(FlipBoardNavigationControllerCompletionBlock)handler
+
+- (void)pushViewController:(UIViewController *)viewController
+{
+    [self pushViewController:viewController completion:^{}];
+}
+
+- (void)pushViewController:(UIViewController *)viewController completion:(void(^)())completion
+{
+    [self pushViewController:viewController transition:UIViewAnimationOptionTransitionFlipFromRight completion:completion];
+}
+
+- (void)pushViewController:(UIViewController *)viewController transition:(UIViewAnimationOptions)transition
+{
+    [self pushViewController:viewController transition:transition completion:^{}];
+}
+
+- (void)pushViewController:(UIViewController *)viewController transition:(UIViewAnimationOptions)transition completion:(void(^)())completion
 {
     if (_animationInProgress || !viewController) {
         return;
     }
     _animationInProgress = YES;
-    viewController.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
+    viewController.hidesBottomBarWhenPushed = YES;
+    viewController.view.clipsToBounds = YES;
+    if (transition == UIViewAnimationOptionTransitionFlipFromRight) {
+        viewController.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
+    } else {
+        viewController.view.frame = self.view.bounds;
+    }
     viewController.view.autoresizingMask =  UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     [viewController willMoveToParentViewController:self];
     [self addChildViewController:viewController];
@@ -167,65 +184,62 @@ typedef enum {
     });
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        KeyframeParametricBlock function = ^double(double time) {
-            CGFloat coeff = 4;
-            CGFloat offset = exp(-coeff);
-            CGFloat scale = 1.0 / (1.0 - offset);
-            return 1.0 - scale * (exp(time * -coeff) - offset);
+        
+        void(^animationCompletionBlock)() = ^() {
+            [self currentViewController].view.transform = CGAffineTransformIdentity;
+            [self addPanGestureToView:[self currentViewController].view];
+            viewController.view.frame = self.view.bounds;
+            [viewController didMoveToParentViewController:self];
+            if (completion) {
+                completion();
+            }
         };
         
-        CALayer *layer = viewController.view.layer;
-        if (layer) {
-            [CATransaction begin];
-            [CATransaction
-             setValue:@(kAnimationDurationPush)
-             forKey:kCATransactionAnimationDuration];
+        if (transition == UIViewAnimationOptionTransitionFlipFromRight) {
+            KeyframeParametricBlock function = ^double(double time) {
+                CGFloat coeff = 4;
+                CGFloat offset = exp(-coeff);
+                CGFloat scale = 1.0 / (1.0 - offset);
+                return 1.0 - scale * (exp(time * -coeff) - offset);
+            };
             
-            // make an animation
-            CAAnimation *flip = [CAKeyframeAnimation
-                                 animationWithKeyPath:@"position.x"
-                                 function:function fromValue:self.view.bounds.size.width * 3 / 2 toValue:self.view.bounds.size.width / 2];
-            // use it
-            [layer addAnimation:flip forKey:@"position"];
-            [CATransaction setCompletionBlock:^{
-                [self currentViewController].view.transform = CGAffineTransformIdentity;
-                [self addPanGestureToView:[self currentViewController].view];
-                viewController.view.frame = self.view.bounds;
-                [viewController didMoveToParentViewController:self];
-                handler();
-            }];
-            [CATransaction commit];
+            CALayer *layer = viewController.view.layer;
+            if (layer) {
+                [CATransaction begin];
+                [CATransaction
+                 setValue:@(kAnimationDurationPush)
+                 forKey:kCATransactionAnimationDuration];
+                
+                // make an animation
+                CAAnimation *flip = [CAKeyframeAnimation
+                                     animationWithKeyPath:@"position.x"
+                                     function:function fromValue:self.view.bounds.size.width * 3 / 2 toValue:self.view.bounds.size.width / 2];
+                // use it
+                [layer addAnimation:flip forKey:@"position"];
+                [CATransaction setCompletionBlock:animationCompletionBlock];
+                [CATransaction commit];
+            }
+        } else {
+            viewController.view.alpha = 0.1;
+            [UIView animateWithDuration:kAnimationDurationPush
+                             animations:^{
+                                 viewController.view.alpha = 1.f;
+                             }
+                             completion:^(BOOL finished) {
+                                 animationCompletionBlock();
+                             }];
         }
     });
-}
-
-- (void)pushViewController:(UIViewController *)viewController
-{
-    [viewController setHidesBottomBarWhenPushed:YES];
-    [viewController.view setClipsToBounds:YES];
-    _segue = nil;
-    [self pushViewController:viewController completion:^{}];
-}
-
-- (void)setSegue:(UIViewController *)segue
-{
-    __block BOOL shouldHide = NO;
-    [self.viewControllers enumerateObjectsUsingBlock:^(UIViewController *vc, NSUInteger idx, BOOL *stop) {
-        if (shouldHide && (idx != self.viewControllers.count-1)) {
-            [vc.view setHidden:YES];
-        }
-        if ([vc isEqual:segue]) {
-            shouldHide = YES;
-        }
-    }];
-    _segue = segue;
+    
 }
 
 #pragma mark - PopViewController With Completion Block
-- (void)popViewControllerWithCompletion:(FlipBoardNavigationControllerCompletionBlock)handler
+- (void)popViewControllerWithCompletion:(void(^)())completion
 {
     if (self.viewControllers.count < 2) {
-        handler();
+        if (completion) {
+            completion();
+        };
         return;
     }
     if (_animationInProgress) {
@@ -261,7 +275,9 @@ typedef enum {
                 [_tabBarContainer addSubview:tabBar];
             }
         }
-        handler();
+        if (completion) {
+            completion();
+        }
     };
     
     if ([UIView areAnimationsEnabled]) {
