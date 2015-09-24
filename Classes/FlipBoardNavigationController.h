@@ -36,6 +36,7 @@
 - (void)pushViewController:(UIViewController *)viewController;
 - (void)pushViewController:(UIViewController *)viewController transition:(UIViewAnimationOptions)transition;
 - (void)pushViewController:(UIViewController *)viewController completion:(void(^)())completion;
+- (void)pushViewController:(UIViewController *)viewController transition:(UIViewAnimationOptions)transition completion:(void(^)())completion;
 - (void)popViewController;
 - (void)popViewControllerWithCompletion:(void(^)())completion;
 - (void)popToRootViewControllerWithCompletion:(void(^)())completion;

@@ -71,7 +71,7 @@ typedef double (^KeyframeParametricBlock)(double);
 
 @end
 
-#define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v)  ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedAscending)
+#pragma mark - FlipBardNavigationController
 
 static const CGFloat kAnimationDurationPush = 0.5f;
 static const CGFloat kAnimationDurationPop = 0.3f;
@@ -101,7 +101,6 @@ typedef enum {
 - (void) completeSlidingAnimationWithDirection:(PanDirection)direction;
 - (void) completeSlidingAnimationWithOffset:(CGFloat)offset;
 - (CGRect) getSlidingRectWithPercentageOffset:(CGFloat)percentage orientation:(UIInterfaceOrientation)orientation ;
-- (CGRect) viewBoundsWithOrientation:(UIInterfaceOrientation)orientation;
 
 @end
 
@@ -111,7 +110,7 @@ typedef enum {
 {
     if (self = [super init]) {
         self.viewControllers = [NSMutableArray arrayWithObject:rootViewController];
-        CGRect viewRect = [self viewBoundsWithOrientation:self.interfaceOrientation];
+        CGRect viewRect = UIScreen.mainScreen.bounds;
         
         UIViewController *rootViewController = [self.viewControllers objectAtIndex:0];
         [rootViewController willMoveToParentViewController:self];
@@ -133,7 +132,6 @@ typedef enum {
     self.viewControllers = nil;
     _gestures  = nil;
 }
-
 
 #pragma mark - PushViewController With Completion Block
 
@@ -163,6 +161,7 @@ typedef enum {
     if (transition == UIViewAnimationOptionTransitionFlipFromRight) {
         viewController.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
     } else {
+        viewController.view.alpha = 0.1;
         viewController.view.frame = self.view.bounds;
     }
     viewController.view.autoresizingMask =  UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
@@ -220,7 +219,6 @@ typedef enum {
                 [CATransaction commit];
             }
         } else {
-            viewController.view.alpha = 0.1;
             [UIView animateWithDuration:kAnimationDurationPush
                              animations:^{
                                  viewController.view.alpha = 1.f;
@@ -234,6 +232,7 @@ typedef enum {
 }
 
 #pragma mark - PopViewController With Completion Block
+
 - (void)popViewControllerWithCompletion:(void(^)())completion
 {
     if (self.viewControllers.count < 2) {
@@ -250,7 +249,6 @@ typedef enum {
     UIViewController *currentVC = [self currentViewController];
     [currentVC.view setClipsToBounds:YES];
     UIViewController *previousVC = [self previousViewController];
-    [previousVC viewWillAppear:NO];
     
     void(^finishBlock)(BOOL) = ^(BOOL finished){
         [currentVC.view removeFromSuperview];
@@ -285,6 +283,7 @@ typedef enum {
             [UIView animateWithDuration:kAnimationDurationPop
                                   delay:kAnimationDelay
                                 options:UIViewAnimationOptionCurveEaseIn animations:^{
+                                    [previousVC viewWillAppear:YES];
                                     currentVC.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
                                     previousVC.view.transform = CGAffineTransformIdentity;
                                     previousVC.view.frame = self.view.bounds;
@@ -516,7 +515,7 @@ static UIImageView *bg;
 #pragma mark - This will complete the animation base on offset
 - (void)completeSlidingAnimationWithOffset:(CGFloat)offset
 {
-    if (offset < [self viewBoundsWithOrientation:self.interfaceOrientation].size.width / 2) {
+    if (offset < UIScreen.mainScreen.bounds.size.width / 2) {
          [self popViewController];
     } else {
         [self rollBackViewController];
@@ -529,29 +528,6 @@ static UIImageView *bg;
     CGRect rectToReturn = self.view.bounds;
     rectToReturn.origin = CGPointMake(MAX(0, (1-percentage)*CGRectGetWidth(rectToReturn)), 0);
     return rectToReturn;
-}
-
-#pragma mark - Get the size of view in the main screen
-- (CGRect)viewBoundsWithOrientation:(UIInterfaceOrientation)orientation
-{
-	CGRect bounds = [UIScreen mainScreen].bounds;
-    if ([[UIApplication sharedApplication]isStatusBarHidden]) {
-        return bounds;
-    } else if (UIInterfaceOrientationIsLandscape(orientation)) {
-		CGFloat width = bounds.size.width;
-		bounds.size.width = bounds.size.height;
-        if (!SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"7.0"))  {
-            bounds.size.height = width - 20;
-        } else {
-            bounds.size.height = width;
-        }
-        return bounds;
-	} else {
-        if (!SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"7.0"))  {
-            bounds.size.height-=20;
-        }
-        return bounds;
-    }
 }
 
 @end
