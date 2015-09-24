@@ -27,49 +27,9 @@
 
 #import "FlipBoardNavigationController.h"
 #import <QuartzCore/QuartzCore.h>
-
-
-#pragma mark Self Defined EaseOut Timing Funciton 
-
-typedef double (^KeyframeParametricBlock)(double);
-
-@interface CAKeyframeAnimation (Parametric)
-
-+ (id)animationWithKeyPath:(NSString *)path
-                  function:(KeyframeParametricBlock)block
-                 fromValue:(double)fromValue
-                   toValue:(double)toValue;
-
-@end
-
-@implementation CAKeyframeAnimation (Parametric)
-
-+ (id)animationWithKeyPath:(NSString *)path
-                  function:(KeyframeParametricBlock)block
-                 fromValue:(double)fromValue
-                   toValue:(double)toValue {
-    // get a keyframe animation to set up
-    CAKeyframeAnimation *animation =
-    [CAKeyframeAnimation animationWithKeyPath:path];
-    // break the time into steps
-    //  (the more steps, the smoother the animation)
-    NSUInteger steps = 200;
-    NSMutableArray *values = [NSMutableArray arrayWithCapacity:steps];
-    double time = 0.0;
-    double timeStep = 1.0 / (double)(steps - 1);
-    for(NSUInteger i = 0; i < steps; i++) {
-        double value = fromValue + (block(time) * (toValue - fromValue));
-        [values addObject:[NSNumber numberWithDouble:value]];
-        time += timeStep;
-    }
-    // we want linear animation between keyframes, with equal time steps
-    animation.calculationMode = kCAAnimationLinear;
-    // set keyframes and we're done
-    [animation setValues:values];
-    return(animation);
-}
-
-@end
+#import "HHTransitionContext.h"
+#import "HHAnimatedTransition.h"
+#import "HHPanGestureInteractiveTransition.h"
 
 #pragma mark - FlipBardNavigationController
 
@@ -90,6 +50,9 @@ typedef enum {
     CGFloat _percentageOffsetFromLeft;
     UIView *_tabBarContainer;
 }
+
+@property (nonatomic, strong) HHPanGestureInteractiveTransition *defaultInteractionController;
+
 
 - (void) addPanGestureToView:(UIView*)view;
 - (void) rollBackViewController;
@@ -116,13 +79,20 @@ typedef enum {
         [rootViewController willMoveToParentViewController:self];
         [self addChildViewController:rootViewController];
         
-        UIView * rootView = rootViewController.view;
+        UIView *rootView = rootViewController.view;
         rootView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
         rootView.frame = viewRect;
         [self.view addSubview:rootView];
         [rootViewController didMoveToParentViewController:self];
         self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
         _gestures = [[NSMutableArray alloc] init];
+        
+        _defaultInteractionController = [[HHPanGestureInteractiveTransition alloc] initWithGestureRecognizerInView:self.view recognizedBlock:^(UIPanGestureRecognizer *recognizer) {
+            BOOL leftToRight = [recognizer velocityInView:recognizer.view].x > 0;
+            if (leftToRight) {
+                [self popViewController];
+            }
+        }];       
     }
     return self;
 }
@@ -158,16 +128,14 @@ typedef enum {
     _animationInProgress = YES;
     viewController.hidesBottomBarWhenPushed = YES;
     viewController.view.clipsToBounds = YES;
-    if (transition == UIViewAnimationOptionTransitionFlipFromRight) {
-        viewController.view.frame = CGRectOffset(self.view.bounds, self.view.bounds.size.width, 0);
-    } else {
+    if (transition != UIViewAnimationOptionTransitionFlipFromRight) {
         viewController.view.alpha = 0.1;
         viewController.view.frame = self.view.bounds;
     }
-    viewController.view.autoresizingMask =  UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
+    viewController.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     [viewController willMoveToParentViewController:self];
     [self addChildViewController:viewController];
-    [self.view addSubview:viewController.view];
+    //[self.view addSubview:viewController.view];
     if (self.viewControllers.count == 1) {
         //只有最外层显示bottomBar
         UITabBar *tabBar = self.currentViewController.tabBarController.tabBar;
@@ -176,59 +144,48 @@ typedef enum {
         [tabBar removeFromSuperview];
         [[self currentViewController].view addSubview:tabBar];
     }
-    [self.viewControllers addObject:viewController];
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         _animationInProgress = NO;
     });
     
-    dispatch_async(dispatch_get_main_queue(), ^{
+    void(^animationCompletionBlock)() = ^() {
+        [self.viewControllers addObject:viewController];
+        viewController.view.transform = CGAffineTransformIdentity;
+        //[self addPanGestureToView:self.currentViewController.view];
         
-        void(^animationCompletionBlock)() = ^() {
-            [self currentViewController].view.transform = CGAffineTransformIdentity;
-            [self addPanGestureToView:[self currentViewController].view];
-            viewController.view.frame = self.view.bounds;
-            [viewController didMoveToParentViewController:self];
-            if (completion) {
-                completion();
+        [self.previousViewController.view removeFromSuperview];
+        viewController.view.frame = self.view.bounds;
+        [viewController didMoveToParentViewController:self];
+        if (completion) {
+            completion();
+        }
+    };
+    
+    if (transition == UIViewAnimationOptionTransitionFlipFromRight) {
+        id<UIViewControllerAnimatedTransitioning>animator = [[HHAnimatedTransition alloc] init];
+        
+        HHTransitionContext *transitionContext = [[HHTransitionContext alloc] initWithFromViewController:self.currentViewController toViewController:viewController isPush:YES];
+        
+        transitionContext.animated = YES;
+        transitionContext.interactive = NO;
+        transitionContext.completionBlock = ^(BOOL didComplete) {
+            animationCompletionBlock();
+            if ([animator respondsToSelector:@selector (animationEnded:)]) {
+                [animator animationEnded:didComplete];
             }
         };
         
-        if (transition == UIViewAnimationOptionTransitionFlipFromRight) {
-            KeyframeParametricBlock function = ^double(double time) {
-                CGFloat coeff = 4;
-                CGFloat offset = exp(-coeff);
-                CGFloat scale = 1.0 / (1.0 - offset);
-                return 1.0 - scale * (exp(time * -coeff) - offset);
-            };
-            
-            CALayer *layer = viewController.view.layer;
-            if (layer) {
-                [CATransaction begin];
-                [CATransaction
-                 setValue:@(kAnimationDurationPush)
-                 forKey:kCATransactionAnimationDuration];
-                
-                // make an animation
-                CAAnimation *flip = [CAKeyframeAnimation
-                                     animationWithKeyPath:@"position.x"
-                                     function:function fromValue:self.view.bounds.size.width * 3 / 2 toValue:self.view.bounds.size.width / 2];
-                // use it
-                [layer addAnimation:flip forKey:@"position"];
-                [CATransaction setCompletionBlock:animationCompletionBlock];
-                [CATransaction commit];
-            }
-        } else {
-            [UIView animateWithDuration:kAnimationDurationPush
-                             animations:^{
-                                 viewController.view.alpha = 1.f;
-                             }
-                             completion:^(BOOL finished) {
-                                 animationCompletionBlock();
-                             }];
-        }
-    });
-    
+        [animator animateTransition:transitionContext];
+    } else {
+        [UIView animateWithDuration:kAnimationDurationPush
+                         animations:^{
+                             viewController.view.alpha = 1.f;
+                         }
+                         completion:^(BOOL finished) {
+                             animationCompletionBlock();
+                         }];
+    }
 }
 
 #pragma mark - PopViewController With Completion Block
@@ -279,7 +236,31 @@ typedef enum {
     };
     
     if ([UIView areAnimationsEnabled]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        
+        id<UIViewControllerAnimatedTransitioning>animator = [[HHAnimatedTransition alloc] init];
+        
+        HHTransitionContext *transitionContext = [[HHTransitionContext alloc] initWithFromViewController:currentVC toViewController:previousVC isPush:NO];
+        
+        transitionContext.animated = YES;
+        
+        id<UIViewControllerInteractiveTransitioning> interactionController = [self _interactionControllerForAnimator:animator animatorIsDefault:YES];
+        
+        transitionContext.interactive = (interactionController != nil);
+        transitionContext.completionBlock = ^(BOOL didComplete) {
+            finishBlock(didComplete);
+            if ([animator respondsToSelector:@selector (animationEnded:)]) {
+                [animator animationEnded:didComplete];
+            }
+        };
+        
+        if ([transitionContext isInteractive]) {
+            [interactionController startInteractiveTransition:transitionContext];
+        } else {
+            [animator animateTransition:transitionContext];
+            //[self _finishTransitionToChildViewController:toViewController];
+        }
+        
+        /*dispatch_async(dispatch_get_main_queue(), ^{
             [UIView animateWithDuration:kAnimationDurationPop
                                   delay:kAnimationDelay
                                 options:UIViewAnimationOptionCurveEaseIn animations:^{
@@ -289,7 +270,7 @@ typedef enum {
                                     previousVC.view.frame = self.view.bounds;
                                 }
                              completion:finishBlock];
-        });    
+        });*/
     } else {
         finishBlock(YES);
     }
@@ -402,6 +383,28 @@ static UIImageView *bg;
 
 }
 
+- (id<UIViewControllerInteractiveTransitioning>)_interactionControllerForAnimator:(id<UIViewControllerAnimatedTransitioning>)animationController animatorIsDefault:(BOOL)animatorIsDefault {
+    
+    if (self.defaultInteractionController.recognizer.state == UIGestureRecognizerStateBegan) {
+        self.defaultInteractionController.animator = animationController;
+        return self.defaultInteractionController;
+    } else if (!animatorIsDefault) {
+        HHPercentDrivenInteractiveTransition *fakeInteraction = [[HHPercentDrivenInteractiveTransition alloc] initWithAnimator:animationController];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [fakeInteraction updateInteractiveTransition:0.25];
+        });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [fakeInteraction updateInteractiveTransition:0.5];
+        });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [fakeInteraction finishInteractiveTransition];
+        });
+        return fakeInteraction;
+    } else {
+        return nil;
+    }
+}
+
 #pragma mark - ChildViewController
 - (UIViewController *)currentViewController {
     if (self.viewControllers.count > 0) {
@@ -460,17 +463,32 @@ static UIImageView *bg;
     if (_animationInProgress) {
         return;
     }
+    UIViewController *previousVC = self.previousViewController;
+    
     PanDirection panDirection = PanDirectionNone;
     static UIViewController *currentVC;
+    static HHTransitionContext *transitionContext;
+    
     if (panGesture.state == UIGestureRecognizerStateBegan) {
         currentVC = [self currentViewController];
-        if (![self previousViewController].hidesBottomBarWhenPushed) {
+        if (!previousVC.hidesBottomBarWhenPushed) {
             UITabBar *tabBar = [self previousViewController].tabBarController.tabBar;
             [tabBar removeFromSuperview];
-            [[self previousViewController].view addSubview:tabBar];
+            [previousVC.view addSubview:tabBar];
             [tabBar setHidden:NO];
         }
+        
+        transitionContext = [[HHTransitionContext alloc] initWithFromViewController:currentVC toViewController:previousVC isPush:NO];
+        
+        transitionContext.animated = YES;
+        transitionContext.interactive = YES;
+        transitionContext.completionBlock = ^(BOOL didComplete) {
+        };
+        
+        [_defaultInteractionController startInteractiveTransition:transitionContext];
+        
     } else {
+        
         CGPoint currentPoint = [panGesture translationInView:self.view];
         CGFloat x = currentPoint.x + _panOrigin.x;
         CGPoint vel = [panGesture velocityInView:self.view];
@@ -481,17 +499,21 @@ static UIImageView *bg;
         }
         CGFloat offset = CGRectGetWidth(self.view.frame) - x;
         _percentageOffsetFromLeft = offset / CGRectGetWidth(self.view.bounds);
+        
+        [transitionContext updateInteractiveTransition:_percentageOffsetFromLeft];
+        [_defaultInteractionController updateInteractiveTransition:_percentageOffsetFromLeft];
+        
         currentVC.view.frame = [self getSlidingRectWithPercentageOffset:_percentageOffsetFromLeft orientation:self.interfaceOrientation];
         [self transformAtPercentage:_percentageOffsetFromLeft];
         
-        if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
+        /*if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
             // If velocity is greater than 100 the Execute the Completion base on pan direction
             if (fabs(vel.x) > 100) {
                 [self completeSlidingAnimationWithDirection:panDirection];
             } else {
                 [self completeSlidingAnimationWithOffset:offset];
             }
-        }
+        }*/
         
     }
 }
