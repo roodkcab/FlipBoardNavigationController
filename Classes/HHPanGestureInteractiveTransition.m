@@ -39,7 +39,8 @@
         if (!_leftToRightTransition) d *= -1;
         [self updateInteractiveTransition:d*1.2];
     } else if (recognizer.state >= UIGestureRecognizerStateEnded) {
-        if (self.percentComplete > 0.2) {
+        CGFloat velocity = [recognizer velocityInView:recognizer.view].x;
+        if (velocity > 0) {
             [self finishInteractiveTransition];
         } else {
             [self cancelInteractiveTransition];

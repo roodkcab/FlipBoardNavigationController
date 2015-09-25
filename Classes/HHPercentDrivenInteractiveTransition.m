@@ -60,10 +60,9 @@
 }
 
 - (void)cancelInteractiveTransition {
-    
+    [_animator animationEnded:NO];
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_tickCancelAnimation)];
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-    
     [_transitionContext cancelInteractiveTransition];
 }
 
@@ -109,7 +108,6 @@
 
 - (void)_transitionFinishedCanceling {
     [_displayLink invalidate];
-    
     CALayer *layer = [_transitionContext containerView].layer;
     layer.speed = 1;
 }

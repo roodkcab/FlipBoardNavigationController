@@ -135,7 +135,6 @@ typedef enum {
     viewController.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     [viewController willMoveToParentViewController:self];
     [self addChildViewController:viewController];
-    //[self.view addSubview:viewController.view];
     if (self.viewControllers.count == 1) {
         //只有最外层显示bottomBar
         UITabBar *tabBar = self.currentViewController.tabBarController.tabBar;
@@ -152,7 +151,6 @@ typedef enum {
     void(^animationCompletionBlock)() = ^() {
         [self.viewControllers addObject:viewController];
         viewController.view.transform = CGAffineTransformIdentity;
-        //[self addPanGestureToView:self.currentViewController.view];
         
         [self.previousViewController.view removeFromSuperview];
         viewController.view.frame = self.view.bounds;
@@ -178,6 +176,8 @@ typedef enum {
         
         [animator animateTransition:transitionContext];
     } else {
+        [self.view addSubview:viewController.view];
+        [self addPanGestureToView:viewController.view];
         [UIView animateWithDuration:kAnimationDurationPush
                          animations:^{
                              viewController.view.alpha = 1.f;
@@ -207,15 +207,13 @@ typedef enum {
     [currentVC.view setClipsToBounds:YES];
     UIViewController *previousVC = [self previousViewController];
     
-    void(^finishBlock)(BOOL) = ^(BOOL finished){
+    void(^finishBlock)() = ^(){
         [currentVC.view removeFromSuperview];
         [currentVC willMoveToParentViewController:nil];
         [self.view bringSubviewToFront:previousVC.view];
         [currentVC removeFromParentViewController];
         [currentVC didMoveToParentViewController:nil];
         [self.viewControllers removeLastObject];
-        _animationInProgress = NO;
-        [previousVC viewDidAppear:NO];
         if (!previousVC.hidesBottomBarWhenPushed) {
             if (_tabBarContainer != nil) {
                 UITabBar *tabBar = previousVC.tabBarController.tabBar;
@@ -230,6 +228,7 @@ typedef enum {
                 [_tabBarContainer addSubview:tabBar];
             }
         }
+        _animationInProgress = NO;
         if (completion) {
             completion();
         }
@@ -247,7 +246,13 @@ typedef enum {
         
         transitionContext.interactive = (interactionController != nil);
         transitionContext.completionBlock = ^(BOOL didComplete) {
-            finishBlock(didComplete);
+            if (didComplete) {
+                finishBlock();
+            } else {
+                //滑动返回取消
+                _animationInProgress = NO;
+                [self.previousViewController.view removeFromSuperview];
+            }
             if ([animator respondsToSelector:@selector (animationEnded:)]) {
                 [animator animationEnded:didComplete];
             }
@@ -320,6 +325,7 @@ static UIImageView *bg;
     }
     if (self.viewControllers.count <= idx + 1) {
         [UIView setAnimationsEnabled:YES];
+        [self.view addSubview:self.currentViewController.view];
         if (animate) {
             self.currentViewController.tabBarController.tabBar.hidden = NO;
             [UIView animateWithDuration:kAnimationDurationPop
@@ -327,6 +333,7 @@ static UIImageView *bg;
                                  bg.transform = CGAffineTransformMakeTranslation(bg.frame.size.width, 0);
                              }
                              completion:^(BOOL finished) {
+                                 _animationInProgress = NO;
                                  if (completion) {
                                      completion();
                                  }
@@ -335,6 +342,7 @@ static UIImageView *bg;
                                  bg = nil;
                              }];
         } else {
+            _animationInProgress = NO;
             if (completion) {
                 completion();
             }

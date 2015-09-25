@@ -19,6 +19,7 @@
 @property (nonatomic, assign) CGRect privateAppearingToRect;
 @property (nonatomic, weak) UIView *containerView;
 @property (nonatomic, assign) UIModalPresentationStyle presentationStyle;
+@property (nonatomic, assign) BOOL canceled;
 
 @end
 
@@ -29,6 +30,7 @@
     NSAssert ([fromViewController isViewLoaded] && fromViewController.view.superview, @"The fromViewController view must reside in the container view upon initializing the transition context.");
     
     if ((self = [super init])) {
+        _canceled = NO;
         _presentationStyle = UIModalPresentationCustom;
         _fromViewController = fromViewController;
         _toViewController = toViewController;
@@ -82,7 +84,10 @@
 	}
 }
 
-- (BOOL)transitionWasCancelled { return NO; } // Our non-interactive transition can't be cancelled (it could be interrupted, though)
+- (BOOL)transitionWasCancelled
+{
+    return self.canceled;
+}
 
 // Supress warnings by implementing empty interaction methods for the remainder of the protocol:
 
@@ -92,10 +97,12 @@
 
 - (void)finishInteractiveTransition
 {
+    self.canceled = NO;
 }
 
 - (void)cancelInteractiveTransition
 {
+    self.canceled = YES;
 }
 
 @end

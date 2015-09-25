@@ -52,6 +52,12 @@ typedef double (^KeyframeParametricBlock)(double);
 
 #pragma mark HHAnimatedTransition
 
+@interface HHAnimatedTransition ()
+
+@property (nonatomic, strong) id<UIViewControllerContextTransitioning>context;
+
+@end
+
 @implementation HHAnimatedTransition
 
 - (NSTimeInterval)transitionDuration:(id<UIViewControllerContextTransitioning>)transitionContext {
@@ -60,6 +66,8 @@ typedef double (^KeyframeParametricBlock)(double);
 
 /// Slide views horizontally, with a bit of space between, while fading out and in.
 - (void)animateTransition:(id<UIViewControllerContextTransitioning>)transitionContext {
+    
+    self.context = transitionContext;
     
     UIViewController* toViewController = [transitionContext viewControllerForKey:UITransitionContextToViewControllerKey];
     UIViewController* fromViewController = [transitionContext viewControllerForKey:UITransitionContextFromViewControllerKey];
@@ -103,6 +111,15 @@ typedef double (^KeyframeParametricBlock)(double);
             fromViewController.view.transform = CGAffineTransformIdentity;
             [transitionContext completeTransition:![transitionContext transitionWasCancelled]];
         }];
+    }
+}
+
+- (void)animationEnded:(BOOL)transitionCompleted
+{
+    if (!transitionCompleted) {
+        UIViewController* fromViewController = [self.context viewControllerForKey:UITransitionContextFromViewControllerKey];
+        [fromViewController.view.layer removeAllAnimations];
+        fromViewController.view.frame = self.context.containerView.bounds;
     }
 }
 
