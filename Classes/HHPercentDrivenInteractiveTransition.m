@@ -60,7 +60,6 @@
 }
 
 - (void)cancelInteractiveTransition {
-    [_animator animationEnded:NO];
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_tickCancelAnimation)];
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     [_transitionContext cancelInteractiveTransition];
@@ -89,14 +88,16 @@
     [_transitionContext updateInteractiveTransition:percentComplete];
 }
 
-- (void)_setTimeOffset:(NSTimeInterval)timeOffset {
+- (void)_setTimeOffset:(NSTimeInterval)timeOffset
+{
     [_transitionContext containerView].layer.timeOffset = timeOffset;
 }
 
-- (void)_tickCancelAnimation {
+- (void)_tickCancelAnimation
+{
     NSTimeInterval timeOffset = [self _timeOffset]-[_displayLink duration];
     if (timeOffset < 0) {
-        [self _transitionFinishedCanceling];
+        [self _transitionFinishedCanceling:CACurrentMediaTime()];
     } else {
         [self _setTimeOffset:timeOffset];
     }
@@ -106,8 +107,10 @@
     return [_transitionContext containerView].layer.timeOffset;
 }
 
-- (void)_transitionFinishedCanceling {
+- (void)_transitionFinishedCanceling:(CGFloat)startTime
+{
     [_displayLink invalidate];
+    [_animator animationEnded:NO];
     CALayer *layer = [_transitionContext containerView].layer;
     layer.speed = 1;
 }

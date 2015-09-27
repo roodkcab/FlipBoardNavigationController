@@ -117,7 +117,8 @@ typedef double (^KeyframeParametricBlock)(double);
 - (void)animationEnded:(BOOL)transitionCompleted
 {
     if (!transitionCompleted) {
-        UIViewController* fromViewController = [self.context viewControllerForKey:UITransitionContextFromViewControllerKey];
+        //被取消
+        UIViewController *fromViewController = [self.context viewControllerForKey:UITransitionContextFromViewControllerKey];
         [fromViewController.view.layer removeAllAnimations];
         fromViewController.view.frame = self.context.containerView.bounds;
     }
