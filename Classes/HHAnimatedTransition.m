@@ -36,9 +36,9 @@ typedef double (^KeyframeParametricBlock)(double);
     NSMutableArray *values = [NSMutableArray arrayWithCapacity:steps];
     double time = 0.0;
     double timeStep = 1.0 / (double)(steps - 1);
-    for(NSUInteger i = 0; i < steps; i++) {
+    for (NSUInteger i = 0; i < steps; i++) {
         double value = fromValue + (block(time) * (toValue - fromValue));
-        [values addObject:[NSNumber numberWithDouble:value]];
+        [values addObject:@(value)];
         time += timeStep;
     }
     // we want linear animation between keyframes, with equal time steps
@@ -54,7 +54,8 @@ typedef double (^KeyframeParametricBlock)(double);
 
 @interface HHAnimatedTransition ()
 
-@property (nonatomic, strong) id<UIViewControllerContextTransitioning>context;
+@property (nonatomic, weak) id<UIViewControllerContextTransitioning>context;
+@property (nonatomic, assign) BOOL isPush;
 
 @end
 
@@ -73,14 +74,14 @@ typedef double (^KeyframeParametricBlock)(double);
     UIViewController* fromViewController = [transitionContext viewControllerForKey:UITransitionContextFromViewControllerKey];
     
     // When sliding the views horizontally in and out, figure out whether we are going left or right.
-    BOOL isPush = [transitionContext initialFrameForViewController:toViewController].origin.x > 1;
+    self.isPush = [transitionContext initialFrameForViewController:toViewController].origin.x > 1;
     
-    if (isPush) {
+    if (self.isPush) {
         KeyframeParametricBlock function = ^double(double time) {
-            CGFloat coeff = 4;
+            CGFloat coeff = 5;
             CGFloat offset = exp(-coeff);
-            CGFloat scale = 1.0 / (1.0 - offset);
-            return 1.0 - scale * (exp(time * -coeff) - offset);
+            CGFloat scale = 1.0 - offset;
+            return 1 - (exp(time * -coeff) - offset) / scale;
         };
         
         CALayer *layer = toViewController.view.layer;
@@ -89,14 +90,13 @@ typedef double (^KeyframeParametricBlock)(double);
             [CATransaction setCompletionBlock:^{
                 [transitionContext completeTransition:![transitionContext transitionWasCancelled]];
             }];
-            [CATransaction
-             setValue:@(0.5)
-             forKey:kCATransactionAnimationDuration];
+            [CATransaction setValue:@(0.5) forKey:kCATransactionAnimationDuration];
             
             // make an animation
-            CAAnimation *flip = [CAKeyframeAnimation
-                                 animationWithKeyPath:@"position.x"
-                                 function:function fromValue:[transitionContext containerView].bounds.size.width * 3 / 2 toValue:[transitionContext containerView].bounds.size.width / 2];
+            CAAnimation *flip = [CAKeyframeAnimation animationWithKeyPath:@"position.x"
+                                                                 function:function
+                                                                fromValue:[transitionContext containerView].bounds.size.width * 3 / 2
+                                                                  toValue:[transitionContext containerView].bounds.size.width / 2];
             // use it
             [layer addAnimation:flip forKey:@"position"];
             

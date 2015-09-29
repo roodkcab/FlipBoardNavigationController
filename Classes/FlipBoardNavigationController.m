@@ -45,23 +45,22 @@ typedef enum {
     PanDirectionRight = 2
 } PanDirection;
 
-@interface FlipBoardNavigationController ()<UIGestureRecognizerDelegate>{
+@interface FlipBoardNavigationController () <HHPanGestureInteractiveTransitionDelegate>
+{
     CGPoint _panOrigin;
     CGFloat _percentageOffsetFromLeft;
     UIView *_tabBarContainer;
 }
 
 @property (nonatomic, strong) HHPanGestureInteractiveTransition *defaultInteractionController;
+@property (nonatomic, assign) BOOL canSwipeBack;
 
-
-- (void) addPanGestureToView:(UIView*)view;
 - (void) rollBackViewController;
 
 - (UIViewController *)currentViewController;
 - (UIViewController *)previousViewController;
 
 - (void) transformAtPercentage:(CGFloat)percentage ;
-- (void) completeSlidingAnimationWithDirection:(PanDirection)direction;
 - (void) completeSlidingAnimationWithOffset:(CGFloat)offset;
 - (CGRect) getSlidingRectWithPercentageOffset:(CGFloat)percentage orientation:(UIInterfaceOrientation)orientation ;
 
@@ -85,14 +84,12 @@ typedef enum {
         [self.view addSubview:rootView];
         [rootViewController didMoveToParentViewController:self];
         self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-        _gestures = [[NSMutableArray alloc] init];
         
+        __weak FlipBoardNavigationController *weakSelf = self;
         _defaultInteractionController = [[HHPanGestureInteractiveTransition alloc] initWithGestureRecognizerInView:self.view recognizedBlock:^(UIPanGestureRecognizer *recognizer) {
-            BOOL leftToRight = [recognizer velocityInView:recognizer.view].x > 0;
-            if (leftToRight) {
-                [self popViewController];
-            }
-        }];       
+            [weakSelf popViewController];
+        }];
+        _defaultInteractionController.delegate = self;
     }
     return self;
 }
@@ -100,7 +97,6 @@ typedef enum {
 - (void)dealloc
 {
     self.viewControllers = nil;
-    _gestures  = nil;
 }
 
 #pragma mark - PushViewController With Completion Block
@@ -152,7 +148,7 @@ typedef enum {
         [self.viewControllers addObject:viewController];
         viewController.view.transform = CGAffineTransformIdentity;
         
-        [self.previousViewController.view removeFromSuperview];
+        //[self.previousViewController.view removeFromSuperview];
         viewController.view.frame = self.view.bounds;
         [viewController didMoveToParentViewController:self];
         if (completion) {
@@ -177,7 +173,6 @@ typedef enum {
         [animator animateTransition:transitionContext];
     } else {
         [self.view addSubview:viewController.view];
-        [self addPanGestureToView:viewController.view];
         [UIView animateWithDuration:kAnimationDurationPush
                          animations:^{
                              viewController.view.alpha = 1.f;
@@ -208,6 +203,11 @@ typedef enum {
     UIViewController *previousVC = [self previousViewController];
     
     void(^finishBlock)() = ^(){
+        if ([previousVC conformsToProtocol:@protocol(FlipBoardNavigationControllerDelegate)]) {
+            self.delegate = (id<FlipBoardNavigationControllerDelegate>)previousVC;
+        } else {
+            self.delegate = nil;
+        }
         [currentVC.view removeFromSuperview];
         [currentVC willMoveToParentViewController:nil];
         [self.view bringSubviewToFront:previousVC.view];
@@ -235,15 +235,10 @@ typedef enum {
     };
     
     if ([UIView areAnimationsEnabled]) {
-        
         id<UIViewControllerAnimatedTransitioning>animator = [[HHAnimatedTransition alloc] init];
-        
         HHTransitionContext *transitionContext = [[HHTransitionContext alloc] initWithFromViewController:currentVC toViewController:previousVC isPush:NO];
-        
         transitionContext.animated = YES;
-        
         id<UIViewControllerInteractiveTransitioning> interactionController = [self _interactionControllerForAnimator:animator animatorIsDefault:YES];
-        
         transitionContext.interactive = (interactionController != nil);
         transitionContext.completionBlock = ^(BOOL didComplete) {
             if (didComplete) {
@@ -251,11 +246,8 @@ typedef enum {
             } else {
                 //滑动返回取消
                 _animationInProgress = NO;
-                [self.previousViewController.view removeFromSuperview];
             }
-            if ([animator respondsToSelector:@selector (animationEnded:)]) {
-                [animator animationEnded:didComplete];
-            }
+            [animator animationEnded:didComplete];
         };
         
         if ([transitionContext isInteractive]) {
@@ -274,7 +266,9 @@ typedef enum {
                                     previousVC.view.transform = CGAffineTransformIdentity;
                                     previousVC.view.frame = self.view.bounds;
                                 }
-                             completion:finishBlock];
+                             completion:^(BOOL finished) {
+                                 finishBlock();
+                             }];
         });*/
     } else {
         finishBlock(YES);
@@ -284,7 +278,7 @@ typedef enum {
 - (void)popViewController
 {
     [self transformAtPercentage:0];
-    [self completeSlidingAnimationWithDirection:PanDirectionRight];
+    [self popViewControllerWithCompletion:^{}];
 }
 
 - (void)popToViewControllerForwardIndex:(NSInteger)idx withCompletion:(void (^)())completion animate:(BOOL)animate
@@ -325,7 +319,7 @@ static UIImageView *bg;
     }
     if (self.viewControllers.count <= idx + 1) {
         [UIView setAnimationsEnabled:YES];
-        [self.view addSubview:self.currentViewController.view];
+        //[self.view addSubview:self.currentViewController.view];
         if (animate) {
             self.currentViewController.tabBarController.tabBar.hidden = NO;
             [UIView animateWithDuration:kAnimationDurationPop
@@ -430,116 +424,10 @@ static UIImageView *bg;
     return result;
 }
 
-#pragma mark - Add Pan Gesture
-- (void)addPanGestureToView:(UIView*)view
-{
-    UIScreenEdgePanGestureRecognizer* panGesture = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(gestureRecognizerDidPan:)];
-    panGesture.cancelsTouchesInView = YES;
-    panGesture.delegate = self;
-    panGesture.edges = UIRectEdgeLeft;
-    [view addGestureRecognizer:panGesture];
-    [_gestures addObject:panGesture];
-    panGesture = nil;
-}
-
-# pragma mark - Avoid Unwanted Vertical Gesture
-- (BOOL)gestureRecognizerShouldBegin:(UIPanGestureRecognizer *)panGestureRecognizer
-{
-    if ([panGestureRecognizer isKindOfClass:UIScreenEdgePanGestureRecognizer.class]) {
-        return YES;
-    }
-    return NO;
-}
-
-#pragma mark - Gesture recognizer
-- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
-{
-    UIViewController * vc =  [self.viewControllers lastObject];
-    _panOrigin = vc.view.frame.origin;
-    gestureRecognizer.enabled = YES;
-    return !_animationInProgress;
-}
-
-- (BOOL) gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
-{
-    return YES;
-}
-
-#pragma mark - Handle Panning Activity
-- (void) gestureRecognizerDidPan:(UIPanGestureRecognizer*)panGesture
-{
-    if (_animationInProgress) {
-        return;
-    }
-    UIViewController *previousVC = self.previousViewController;
-    
-    PanDirection panDirection = PanDirectionNone;
-    static UIViewController *currentVC;
-    static HHTransitionContext *transitionContext;
-    
-    if (panGesture.state == UIGestureRecognizerStateBegan) {
-        currentVC = [self currentViewController];
-        if (!previousVC.hidesBottomBarWhenPushed) {
-            UITabBar *tabBar = [self previousViewController].tabBarController.tabBar;
-            [tabBar removeFromSuperview];
-            [previousVC.view addSubview:tabBar];
-            [tabBar setHidden:NO];
-        }
-        
-        transitionContext = [[HHTransitionContext alloc] initWithFromViewController:currentVC toViewController:previousVC isPush:NO];
-        
-        transitionContext.animated = YES;
-        transitionContext.interactive = YES;
-        transitionContext.completionBlock = ^(BOOL didComplete) {
-        };
-        
-        [_defaultInteractionController startInteractiveTransition:transitionContext];
-        
-    } else {
-        
-        CGPoint currentPoint = [panGesture translationInView:self.view];
-        CGFloat x = currentPoint.x + _panOrigin.x;
-        CGPoint vel = [panGesture velocityInView:self.view];
-        if (vel.x > 0) {
-            panDirection = PanDirectionRight;
-        } else {
-            panDirection = PanDirectionLeft;
-        }
-        CGFloat offset = CGRectGetWidth(self.view.frame) - x;
-        _percentageOffsetFromLeft = offset / CGRectGetWidth(self.view.bounds);
-        
-        [transitionContext updateInteractiveTransition:_percentageOffsetFromLeft];
-        [_defaultInteractionController updateInteractiveTransition:_percentageOffsetFromLeft];
-        
-        currentVC.view.frame = [self getSlidingRectWithPercentageOffset:_percentageOffsetFromLeft orientation:self.interfaceOrientation];
-        [self transformAtPercentage:_percentageOffsetFromLeft];
-        
-        /*if (panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) {
-            // If velocity is greater than 100 the Execute the Completion base on pan direction
-            if (fabs(vel.x) > 100) {
-                [self completeSlidingAnimationWithDirection:panDirection];
-            } else {
-                [self completeSlidingAnimationWithOffset:offset];
-            }
-        }*/
-        
-    }
-}
-
 #pragma mark - Set the required transformation based on percentage
 - (void)transformAtPercentage:(CGFloat)percentage
 {
     [self previousViewController].view.transform = CGAffineTransformIdentity;
-}
-
-#pragma mark - This will complete the animation base on pan direction
-- (void)completeSlidingAnimationWithDirection:(PanDirection)direction
-{
-    if (direction == PanDirectionRight) {
-        [self popViewControllerWithCompletion:^{}];
-    } else {
-        [self rollBackViewController];
-    }
 }
 
 #pragma mark - This will complete the animation base on offset
@@ -558,6 +446,16 @@ static UIImageView *bg;
     CGRect rectToReturn = self.view.bounds;
     rectToReturn.origin = CGPointMake(MAX(0, (1-percentage)*CGRectGetWidth(rectToReturn)), 0);
     return rectToReturn;
+}
+
+#pragma mark HHPanGestureInteractiveTransition Delegate
+
+- (BOOL)swipeBackGestureEnable
+{
+    if ([self.delegate respondsToSelector:@selector(canSwipeBack)]) {
+        return [self.delegate canSwipeBack];
+    }
+    return YES;
 }
 
 @end

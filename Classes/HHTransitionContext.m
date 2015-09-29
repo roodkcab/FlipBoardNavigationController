@@ -48,7 +48,8 @@
             _privateAppearingToRect = _containerView.bounds;
             _privateDisappearingToRect = _privateDisappearingFromRect = _containerView.bounds;
         } else {
-            [_containerView insertSubview:toViewController.view belowSubview:fromViewController.view];
+            //[_containerView insertSubview:toViewController.view belowSubview:fromViewController.view];
+            [toViewController viewWillAppear:YES];
             _privateDisappearingFromRect = _containerView.bounds;
             _privateDisappearingToRect = CGRectOffset (_containerView.bounds, travelDistance, 0);
             _privateAppearingToRect = _privateAppearingFromRect = _containerView.bounds;

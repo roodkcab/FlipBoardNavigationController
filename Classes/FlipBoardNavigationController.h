@@ -27,10 +27,17 @@
 
 #import <UIKit/UIKit.h>
 
+@protocol FlipBoardNavigationControllerDelegate <NSObject>
+
+@optional
+- (BOOL)canSwipeBack;
+
+@end
+
 @interface FlipBoardNavigationController : UIViewController
 
-@property (nonatomic, retain) NSMutableArray *gestures;
-@property (nonatomic, retain) NSMutableArray *viewControllers;
+@property (nonatomic, strong) NSMutableArray *viewControllers;
+@property (nonatomic, weak) id<FlipBoardNavigationControllerDelegate> delegate;
 
 - (instancetype)initWithRootViewController:(UIViewController*)rootViewController;
 - (void)pushViewController:(UIViewController *)viewController;
