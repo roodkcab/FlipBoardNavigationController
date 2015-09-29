@@ -203,8 +203,8 @@ typedef enum {
     UIViewController *previousVC = [self previousViewController];
     
     void(^finishBlock)() = ^(){
-        if ([previousVC conformsToProtocol:@protocol(FlipBoardNavigationControllerDelegate)]) {
-            self.delegate = (id<FlipBoardNavigationControllerDelegate>)previousVC;
+        if ([previousVC conformsToProtocol:@protocol(FlipBoardNavigationDelegate)]) {
+            self.delegate = (id<FlipBoardNavigationDelegate>)previousVC;
         } else {
             self.delegate = nil;
         }
