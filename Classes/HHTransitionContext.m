@@ -81,6 +81,7 @@
 
 - (void)completeTransition:(BOOL)didComplete {
 	if (self.completionBlock) {
+        [self.toViewController viewDidAppear:YES];
 		self.completionBlock (didComplete);
 	}
 }
