@@ -53,7 +53,6 @@ typedef enum {
 }
 
 @property (nonatomic, strong) HHPanGestureInteractiveTransition *defaultInteractionController;
-@property (nonatomic, assign) BOOL canSwipeBack;
 
 - (void) rollBackViewController;
 
@@ -450,10 +449,10 @@ static UIImageView *bg;
 
 #pragma mark HHPanGestureInteractiveTransition Delegate
 
-- (BOOL)swipeBackGestureEnable
+- (BOOL)swipeBackGestureEnable:(CGPoint)point
 {
-    if ([self.delegate respondsToSelector:@selector(canSwipeBack)]) {
-        return [self.delegate canSwipeBack];
+    if ([self.delegate respondsToSelector:@selector(canSwipeBack:)]) {
+        return [self.delegate canSwipeBack:point];
     }
     return YES;
 }

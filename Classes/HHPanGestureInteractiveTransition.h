@@ -10,7 +10,7 @@
 
 @protocol HHPanGestureInteractiveTransitionDelegate <NSObject>
 
-- (BOOL)swipeBackGestureEnable;
+- (BOOL)swipeBackGestureEnable:(CGPoint)point;
 
 @end
 

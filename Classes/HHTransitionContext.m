@@ -20,6 +20,7 @@
 @property (nonatomic, weak) UIView *containerView;
 @property (nonatomic, assign) UIModalPresentationStyle presentationStyle;
 @property (nonatomic, assign) BOOL canceled;
+@property (nonatomic, assign) BOOL isPush;
 
 @end
 
@@ -31,6 +32,7 @@
     
     if ((self = [super init])) {
         _canceled = NO;
+        _isPush = isPush;
         _presentationStyle = UIModalPresentationCustom;
         _fromViewController = fromViewController;
         _toViewController = toViewController;
@@ -81,7 +83,9 @@
 
 - (void)completeTransition:(BOOL)didComplete {
 	if (self.completionBlock) {
-        [self.toViewController viewDidAppear:YES];
+        if (!self.isPush) {
+            [self.toViewController viewDidAppear:YES];
+        }
 		self.completionBlock (didComplete);
 	}
 }

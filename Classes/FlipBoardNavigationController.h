@@ -30,7 +30,7 @@
 @protocol FlipBoardNavigationDelegate <NSObject>
 
 @optional
-- (BOOL)canSwipeBack;
+- (BOOL)canSwipeBack:(CGPoint)point;
 
 @end
 

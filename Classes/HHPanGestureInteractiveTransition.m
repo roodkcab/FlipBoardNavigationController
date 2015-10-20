@@ -55,7 +55,7 @@
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
 {
-    return !self.keyboardVisible && [self.delegate swipeBackGestureEnable];
+    return !self.keyboardVisible && [self.delegate swipeBackGestureEnable:[touch locationInView:touch.window]];
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
