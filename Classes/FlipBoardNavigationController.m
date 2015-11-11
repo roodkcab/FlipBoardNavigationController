@@ -215,14 +215,28 @@ typedef enum {
         [self.viewControllers removeLastObject];
         if (!previousVC.hidesBottomBarWhenPushed) {
             if (_tabBarContainer != nil) {
+                /*UITabBar *tabBar = previousVC.tabBarController.tabBar;
+                void(^tabBarBlock)() = ^{
+                    [tabBar removeFromSuperview];
+                    tabBar.userInteractionEnabled = YES;
+                    [_tabBarContainer addSubview:tabBar];
+                };
+                if (bg) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        tabBarBlock();
+                    });
+                } else {
+                    tabBarBlock();
+                }*/
+                
                 UITabBar *tabBar = previousVC.tabBarController.tabBar;
                 [tabBar removeFromSuperview];
-                if (bg) {
+                /*if (bg) {
                     tabBar.hidden = YES;
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                         tabBar.hidden = NO;
                     });
-                }
+                }*/
                 tabBar.userInteractionEnabled = YES;
                 [_tabBarContainer addSubview:tabBar];
             }
@@ -316,29 +330,33 @@ static UIImageView *bg;
         UIGraphicsEndImageContext();
         [((UIViewController *)self.viewControllers[idx]).view addSubview:bg];
     }
+    
     if (self.viewControllers.count <= idx + 1) {
         [UIView setAnimationsEnabled:YES];
         //[self.view addSubview:self.currentViewController.view];
+        void(^finishBlock)() = ^{
+            _animationInProgress = NO;
+            if (completion) {
+                completion();
+            }
+            [self.currentViewController viewDidAppear:YES];
+        };
         if (animate) {
-            self.currentViewController.tabBarController.tabBar.hidden = NO;
+            //self.currentViewController.tabBarController.tabBar.hidden = NO;
             [UIView animateWithDuration:kAnimationDurationPop
                              animations:^{
+                                 [self.currentViewController viewWillAppear:YES];
                                  bg.transform = CGAffineTransformMakeTranslation(bg.frame.size.width, 0);
                              }
                              completion:^(BOOL finished) {
-                                 _animationInProgress = NO;
-                                 if (completion) {
-                                     completion();
-                                 }
+                                 finishBlock();
                                  bg.transform = CGAffineTransformIdentity;
                                  [bg removeFromSuperview];
                                  bg = nil;
                              }];
         } else {
-            _animationInProgress = NO;
-            if (completion) {
-                completion();
-            }
+            [self.currentViewController viewWillAppear:YES];
+            finishBlock();
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAnimationDurationPush + 0.2) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [bg removeFromSuperview];
                 bg = nil;
